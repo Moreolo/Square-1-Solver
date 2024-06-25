@@ -10,7 +10,7 @@ class Square1:
     # turns the slice
     # returns False if slice is not possible
     # returns True if slice is successful
-    def turn_slice(self) -> bool:
+    def turn_slice(self) -> None:
         angle: int = 0
         # gets start index of slice
         start: int = 0
@@ -19,7 +19,7 @@ class Square1:
             start += 1
         # checks if angle is too big to fit corner
         if angle > 6:
-            return False
+            raise OverflowError
 
         angle = 0
         # gets end index of slice
@@ -29,11 +29,10 @@ class Square1:
             end -= 1
         # checks if angle is too big to fit corner
         if angle > 6:
-            return False
-      
+            raise OverflowError
+
         # performs slice
         self.pieces[start:end] = self.pieces[end-1:start-1:-1]
-        return True
 
     # turns the layers
     # cycles the pieces of the layers turn times to the left
@@ -119,6 +118,9 @@ class Square1:
                     (1, 1), (5, 1) if top_aligned else (1, 5), (3, 1), (7, 1),
                     (0, 2), (0, 6), (2, 2), (2, 6),
                     (1, 3), (1, 7), (7, 7), (7, 3) if top_aligned else (3, 7)]
+
+    def solve_auf(self) -> None:
+        self.turn_layers((self.pieces.index(0), self.pieces.index(8) - 8))
 
     def get_angle(self, index: int) -> int:
         if self.pieces[index] % 2 == 0:
