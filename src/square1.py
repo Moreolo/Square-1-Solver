@@ -105,6 +105,21 @@ class Square1:
             turn += 1
         return turns
 
+    def get_unique_turns_cubeshape(self) -> list[tuple[int, int]]:
+        if self.pieces[0] % 2 != self.pieces[-1] % 2:
+            # same alignment
+            return [(1, 0), (5, 0), (3, 0), (7, 0),
+                    (0, 1), (0, 5), (2, 1), (6, 1),
+                    (1, 2), (1, 6), (7, 2), (7, 6),
+                    (0, 3), (0, 7), (2, 7), (6, 7)]
+        else:
+            # different alignment
+            top_aligned: bool = self.pieces[0] % 2 == 0
+            return [(0, 0), (4, 0), (2, 0), (6, 0),
+                    (1, 1), (5, 1) if top_aligned else (1, 5), (3, 1), (7, 1),
+                    (0, 2), (0, 6), (2, 2), (2, 6),
+                    (1, 3), (1, 7), (7, 7), (7, 3) if top_aligned else (3, 7)]
+
     def get_angle(self, index: int) -> int:
         if self.pieces[index] % 2 == 0:
             return 2
