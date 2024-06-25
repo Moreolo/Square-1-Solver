@@ -33,6 +33,8 @@ class StateSqSq:
             for orientation in orientations:
                 orientation = not orientation
 
+        # gets the co case of the up layer
+        # and gets the rotation of the up layer
         case: int = 0
         up_rot: int = 0
         try:
@@ -50,10 +52,13 @@ class StateSqSq:
             else:
                 case = 1
 
+        # gets the orientation of the corners on the down layer
         orientations = []
         alignment = self.square1.pieces[8] % 2
         for i in range(8 + alignment, 16, 2):
             orientations.append(self.square1.pieces[i] < 8)
+        # gets the co case for both layers
+        # and gets the rotation of the down layer
         try:
             down_rot = orientations.index(True)
         except:
@@ -64,11 +69,11 @@ class StateSqSq:
                     down_rot = 3
                 elif not orientations[down_rot + 1]:
                     case += 2
-        # rotate layers
+        # rotates the layers for EP
         self.rotate_layers(up_rot, down_rot)
+
         permutation_corners_black = 0
         permutation_corners_white = 0
-        orientation_corners = 0
         permutation_edges = 0
 
     def rotate_layers(self, up_rot: int, down_rot: int) -> None:
