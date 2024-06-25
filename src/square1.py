@@ -1,11 +1,11 @@
 
 class Square1:
-    def __init__(self) -> None:
+    def __init__(self, pieces: list[int] = [i for i in range(16)]) -> None:
         # cececece cececece
         # ceceecec ececcece
         # starts on U at FL, goes cw
         # continues on D at BR, goes ccw
-        self.pieces: list[int] = [i for i in range(16)]
+        self.pieces: list[int] = pieces
 
     # turns the slice
     # returns False if slice is not possible
@@ -37,6 +37,8 @@ class Square1:
     # turns the layers
     # cycles the pieces of the layers turn times to the left
     def turn_layers(self, turn: tuple[int, int]) -> None:
+        if turn[0] == 0 and turn[1] == 0:
+            return
         # calculates the pieces on the up layer
         up_turns: int = 0
         angle: int = 0
@@ -123,7 +125,5 @@ class Square1:
         self.turn_layers((self.pieces.index(0), self.pieces.index(8) - 8))
 
     def get_angle(self, index: int) -> int:
-        if self.pieces[index] % 2 == 0:
-            return 2
-        return 1
+        return 2 - (self.pieces[index] % 2)
             
