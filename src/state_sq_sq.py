@@ -76,34 +76,9 @@ class StateSqSq:
 
     def swap_layers(self) -> None:
         for piece in self.square1.pieces:
-            piece = 18 - piece
-            if piece > 15 or piece < 11:
-                piece -= 8
-
-            if piece == 0:
-                piece = 10
-            elif piece == 1:
-                piece = 9
-            elif piece == 2:
-                piece = 8
-            elif piece == 3:
-                piece = 15
-            elif piece == 4:
-                piece = 14
-            elif piece == 5:
-                piece = 13
-            elif piece == 6:
-                piece = 12
-            elif piece == 7:
-                piece = 11
-            elif piece == 8:
-                piece = 2
-            elif piece == 9:
-                piece = 1
-            elif piece == 10:
-                piece = 0
-            elif piece == 11:
-                piece = 7
+            piece = 14 - piece
+            if piece == 7 or piece < 0:
+                piece += 8
 
     def cycle_layers(self) -> None:
         pass
