@@ -59,7 +59,6 @@ class Square1:
             pot_turns.append(turn)
             angle += self.get_angle(turn)
             turn += 1
-            print(pot_angles, pot_turns)
         # gets the valid angles
         up_ats: list[tuple[int, int, int]] = []
         while angle < 12:
@@ -67,7 +66,7 @@ class Square1:
                 pot_angle: int = angle - 6
                 index = pot_angles.index(pot_angle)
             except:
-                print(pot_angle)
+                pass
             else:
                 up_ats.append((pot_angle, pot_turns[index], turn))
             angle += self.get_angle(turn)
@@ -84,8 +83,8 @@ class Square1:
             pot_turns.append(turn)
             angle += self.get_angle(up_turns_no + turn)
             turn += 1
-        # gets the valid angles
-        down_ats: list[tuple[int, int, int]]= []
+        # gets the valid angles and gets unique turn combinations
+        turns: list[tuple[int, int]] = []
         while angle < 12:
             try:
                 pot_angle: int = angle - 6
@@ -93,24 +92,17 @@ class Square1:
             except:
                 pass
             else:
-                down_ats.append((pot_angle, pot_turns[index], turn))
+                for up_at in up_ats:
+                    if up_at[0] + pot_angle < 7:
+                        turns.append((up_at[1], pot_turns[index]))
+                    else:
+                        turns.append((up_at[2], turn))
+                    if up_at[0] < pot_angle:
+                        turns.append((up_at[1], turn))
+                    else:
+                        turns.append((up_at[2], pot_turns[index]))
             angle += self.get_angle(up_turns_no + turn)
             turn += 1
-        
-        print(up_ats)
-        print(down_ats)
-        # gets unique turn combinations
-        turns: list[tuple[int, int]] = []
-        for up_at in up_ats:
-            for down_at in down_ats:
-                if up_at[0] + down_at[0] < 7:
-                    turns.append((up_at[1], down_at[1]))
-                else:
-                    turns.append((up_at[2], down_at[2]))
-                if up_at[0] < down_at[0]:
-                    turns.append((up_at[1], down_at[2]))
-                else:
-                    turns.append((up_at[2], down_at[1]))
         return turns
 
     def get_angle(self, index: int) -> int:
