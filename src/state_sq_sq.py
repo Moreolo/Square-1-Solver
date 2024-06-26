@@ -1,22 +1,17 @@
 from square1 import Square1
 
 class StateSqSq:
-    # c1 < c2 < c3 < c4
-    # c1 c2 c3 c4
-    #  -  0  0  0
-    #
-    # c3 c2 c4 c1
-    #  -  1  0  3
-    #
-    # c4 c3 c2 c1
-    #  -  1  2  3
-
-
-    # 1 16 36 16 1
-
     def __init__(self, square1: Square1) -> None:
         self.square1: Square1 = Square1(square1.pieces[:])
-        # finds the orientation case
+        self.co: int = 0
+        self.cp_black: int = 0
+        self.cp_white: int = 0
+        self.ep: int = 0
+        self.calculate_orientation()
+        self.calculate_permutation()
+
+    # calculates the co case
+    def calculate_orientation(self) -> None:
         # gets the orientation of the corners on the up layer
         orientations: list[bool] = []
         alignment: int = self.square1.pieces[0] % 2
@@ -29,13 +24,15 @@ class StateSqSq:
             orientations.append(is_black)
         # swaps layers if there are fewer black pieces than white pieces
         if blacks < 2:
-            self.swap_layers()
+            for piece in self.square1.pieces:
+                piece = 14 - piece
+                if piece == 7 or piece < 0:
+                    piece += 8
             for orientation in orientations:
                 orientation = not orientation
 
         # gets the co case of the up layer
         # and gets the rotation of the up layer
-        case: int = 0
         up_rot: int = 0
         try:
             up_rot = orientations.index(False)
@@ -44,13 +41,13 @@ class StateSqSq:
         else:
             if up_rot == 0 and not orientations[-1]:
                 up_rot = 3
-                case = 2
+                self.co = 2
             elif not orientations[(up_rot + 1) % 4]:
-                case = 2
+                self.co = 2
             elif not orientations[(up_rot + 2) % 4]:
-                case = 3
+                self.co = 3
             else:
-                case = 1
+                self.co = 1
 
         # gets the orientation of the corners on the down layer
         orientations = []
@@ -64,26 +61,63 @@ class StateSqSq:
         except:
             pass
         else:
-            if case > 1:
+            if self.co > 1:
                 if down_rot == 0 and orientations[-1]:
                     down_rot = 3
                 elif not orientations[down_rot + 1]:
-                    case += 2
+                    self.co += 2
         # rotates the layers for EP
-        self.rotate_layers(up_rot, down_rot)
-
-        permutation_corners_black = 0
-        permutation_corners_white = 0
-        permutation_edges = 0
-
-    def rotate_layers(self, up_rot: int, down_rot: int) -> None:
         self.square1.turn_layers((up_rot * 2, down_rot * 2))
 
-    def swap_layers(self) -> None:
+    # calculates the piece permutation
+    def calculate_permutation(self) -> None:
+        # gets a reduced representation of the black and white corners and all edges
+        black_corners: list[int] = []
+        white_corners: list[int] = []
+        edges: list[int] = []
         for piece in self.square1.pieces:
-            piece = 14 - piece
-            if piece == 7 or piece < 0:
-                piece += 8
-
-    def cycle_layers(self) -> None:
-        pass
+            if piece % 2 == 0:
+                if piece < 8:
+                    black_corners.append(piece // 2)
+                else:
+                    white_corners.append(piece // 2 - 4)
+            else:
+                edges.append((piece - 1) // 2)
+        # cycles black and white pieces, so first occuring colored corner is the lowest
+        # calculates permutation in the same iterations
+        black_offset: int = black_corners[0]
+        white_offset: int = white_corners[0]
+        factor: int = 1
+        for i in range(4):
+            # cycle
+            black_corners[i] = (black_corners[i] - black_offset) % 4
+            white_corners[i] = (white_corners[i] - white_offset) % 4
+            # permutation calculation
+            if i > 1:
+                factor *= (i - 1)
+                higher_black: int = 0
+                higher_white: int = 0
+                for j in range(1, i):
+                    if black_corners[j] > black_corners[i]:
+                        higher_black += 1
+                    if white_corners[j] > white_corners[i]:
+                        higher_white += 1
+                self.cp_black += higher_black * factor
+                self.cp_white += higher_white * factor
+        factor = 1
+        for edge in edges:
+            # cycle
+            if edge < 4:
+                edge = (edge - black_offset) % 4
+            else:
+                edge = (edge - white_offset) % 4 + 4
+            # permutation calculation
+            if i > 0:
+                factor *= i
+                higher: int = 0
+                for j in range(i):
+                    if edges[j] > edge:
+                        higher += 1
+                self.ep += higher * factor
+            # divides by 2 because parity is even
+            self.ep //= 2
