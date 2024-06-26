@@ -106,7 +106,7 @@ class Square1:
             turn += 1
         return turns
 
-    def get_unique_turns_cubeshape(self) -> list[tuple[int, int]]:
+    def get_unique_turns_sq_sq(self) -> list[tuple[int, int]]:
         if self.pieces[0] % 2 != self.pieces[-1] % 2:
             # same alignment
             return [(1, 0), (5, 0), (3, 0), (7, 0),
