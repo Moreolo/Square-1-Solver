@@ -1,8 +1,6 @@
 
 class Square1:
     def __init__(self, pieces: list[int] = [i for i in range(16)]) -> None:
-        # cececece cececece
-        # ceceecec ececcece
         # starts on U at FL, goes cw
         # continues on D at BR, goes ccw
         self.pieces: list[int] = pieces
