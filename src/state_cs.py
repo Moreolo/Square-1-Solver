@@ -1,10 +1,12 @@
 from square1 import Square1
 
 class StateCS:
+    size: int = 125
+
     def __init__(self, square1: Square1) -> None:
-        self.square1 = Square1(square1.pieces[:])
-        self.cs: int = 0
-        self.parity: int = 0
+        self.square1: Square1 = square1.get_copy()
+        self.cs: int = 0 # 65 = 39 + 21 + 5
+        self.parity: int = 0 # 2
 
         # calculate cubeshape
         # get shapes of layers

@@ -1,9 +1,11 @@
-
 class Square1:
     def __init__(self, pieces: list[int] = [i for i in range(16)]) -> None:
         # starts on U at FL, goes cw
         # continues on D at BR, goes ccw
         self.pieces: list[int] = pieces
+
+    def get_copy(self) -> "Square1":
+        return Square1(self.pieces[:])
 
     # turns the slice
     # returns False if slice is not possible

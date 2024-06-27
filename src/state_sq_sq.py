@@ -1,8 +1,10 @@
 from square1 import Square1
 
 class StateSqSq:
+    size: int = 4354560 # = 6 * 3! 3! 8! / 2
+
     def __init__(self, square1: Square1) -> None:
-        self.square1: Square1 = Square1(square1.pieces[:])
+        self.square1: Square1 = square1.get_copy()
         self.co: int = 0 # 6
         self.cp_black: int = 0 # 6 = 3!
         self.cp_white: int = 0 # 6 = 3!
