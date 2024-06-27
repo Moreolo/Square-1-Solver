@@ -52,6 +52,10 @@ class StateCS:
                     self.parity += 1
         self.parity %= 2
 
+    # index is in range [0, 125[
+    def get_index(self) -> int:
+        return self.parity * 70 + self.cs
+
     def _get_shape(self, turn: int) -> tuple[list[int], int]:
         # gets shape of layer with start at turn
         shape: list[int] = [0]

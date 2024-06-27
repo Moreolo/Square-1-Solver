@@ -3,12 +3,20 @@ from square1 import Square1
 class StateSqSq:
     def __init__(self, square1: Square1) -> None:
         self.square1: Square1 = Square1(square1.pieces[:])
-        self.co: int = 0
-        self.cp_black: int = 0
-        self.cp_white: int = 0
-        self.ep: int = 0
+        self.co: int = 0 # 6
+        self.cp_black: int = 0 # 6 = 3!
+        self.cp_white: int = 0 # 6 = 3!
+        self.ep: int = 0 # 20160 = 8! / 2
         self.calculate_orientation()
         self.calculate_permutation()
+
+    # index is in range [0, 4 354 560[
+    def get_index(self) -> int:
+        index: int = self.ep
+        index = index * 6 + self.co
+        index = index * 6 + self.cp_black
+        index = index * 6 + self.cp_white
+        return index
 
     # calculates the co case
     def calculate_orientation(self) -> None:
@@ -119,5 +127,5 @@ class StateSqSq:
                     if edges[j] > edge:
                         higher += 1
                 self.ep += higher * factor
-            # divides by 2 because parity is even
-            self.ep //= 2
+        # divides by 2 because parity is even
+        self.ep //= 2
