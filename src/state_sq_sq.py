@@ -2,9 +2,10 @@ from square1 import Square1
 
 class StateSqSq:
     size: int = 4354560 # = 6 * 3! 3! 8! / 2
+    max_slices: int = 12
 
     def __init__(self, square1: Square1) -> None:
-        self.square1: Square1 = square1.get_copy()
+        self.square1: Square1 = square1
         self.co: int = 0 # 6
         self.cp_black: int = 0 # 6 = 3!
         self.cp_white: int = 0 # 6 = 3!
@@ -66,6 +67,7 @@ class StateSqSq:
             orientations.append(self.square1.pieces[i] < 8)
         # gets the co case for both layers
         # and gets the rotation of the down layer
+        down_rot: int = 0
         try:
             down_rot = orientations.index(True)
         except:

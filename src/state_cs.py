@@ -2,9 +2,10 @@ from square1 import Square1
 
 class StateCS:
     size: int = 113 # = 65 * 2 - 5 - 12
+    max_slices: int = 7
 
     def __init__(self, square1: Square1) -> None:
-        self.square1: Square1 = square1.get_copy()
+        self.square1: Square1 = square1
         self.cs: int = 0 # 65 = 39 + 21 + 5
         self.parity: int = 0 # 2
 
@@ -14,6 +15,7 @@ class StateCS:
         down_shape: list[int] = self._get_shape(False)
         # flips shape with more edges to up
         if len(up_shape) > 4:
+            self._flip()
             up_shape, down_shape = down_shape, up_shape
         match 4 - len(up_shape):
             case 0:
@@ -27,21 +29,32 @@ class StateCS:
                 # 9 + 5
                 # 1 + 8, 5 + 8
                 # 5 + 9
-                if (up_case > 7 or down_case > 7 and (not
+                if ((up_case > 7 or down_case > 7) and (not
                         (up_case == 1 or up_case == 5 or
                         down_case == 1 or down_case == 5) or
                         (up_case == 9 and down_case == 1 or
                         up_case == 1 and down_case == 9))):
                     # mirrors case
-                    if up_case == 0 or up_case == 4 or up_case == 6 or up_case == 5 or up_case == 9:
-                        self.parity += 1
-                    if up_case == 0 or up_case == 4 or up_case == 6 or up_case == 5 or up_case == 9:
-                        self.parity += 1
-                    up_case = _get_base_case_4_edges(up_case)
-                    down_case = _get_base_case_4_edges(down_case)
+                    # if (up_case == 0 or
+                    #     up_case == 4 or
+                    #     up_case == 6 or
+                    #     up_case == 5 or
+                    #     up_case == 9):
+                    #     self.parity += 1
+                    # if (down_case == 0 or
+                    #     down_case == 4 or
+                    #     down_case == 6 or
+                    #     down_case == 5 or
+                    #     down_case == 9):
+                    #     self.parity += 1
+                    self._mirror(8)
+                    up_case = _mirror_case_4_edges(up_case)
+                    down_case = _mirror_case_4_edges(down_case)
 
                 if up_case < down_case:
                     # flips case
+                    self._flip()
+                    up_shape, down_shape = down_shape, up_shape
                     up_case, down_case = down_case, up_case
 
                 # corrects case number for cubeshape number
@@ -63,12 +76,12 @@ class StateCS:
                 # handle all shapes with 6 + 2 edges
                 up_case: int = _get_case_6_edges(up_shape)
                 down_case: int = _get_case_2_edges(down_shape)
-                # mirrors asymmetric states to bases mirror states
+                # mirrors asymmetric states to base mirror states
                 if up_case > 6:
-                    self.parity += 1
-                    up_case = 7 - up_case
+                    self._mirror(9)
+                    up_case -= 7
                 # converts the two cases to a combined CS case
-                self.cs = 39 + 7 * down_case + up_case
+                self.cs = 39 + 3 * up_case + down_case
                 # symmetric states always tale same amount of slices, no matter parity
                 if up_case > 2:
                     return
@@ -87,7 +100,7 @@ class StateCS:
 
     # index is in range [0, 113[
     def get_index(self) -> int:
-        return self.parity * 70 + self.cs
+        return self.parity * 65 + self.cs
 
     def _flip(self) -> None:
         self.square1.pieces = self.square1.pieces[::-1]
@@ -142,7 +155,7 @@ class StateCS:
                 if self.square1.pieces[(turn + 2) if is_up else 15 - (turn + 2)] % 2 != 0:
                     turn = (turn + 3) % piece_count
 
-        return turn if is_up else (piece_count - turn) & piece_count
+        return turn if is_up else (piece_count - turn) % piece_count
 
 def _get_case_4_edges(edge_list: list[int]) -> int:
     # calculate distinct cases
@@ -170,13 +183,13 @@ def _get_case_4_edges(edge_list: list[int]) -> int:
     else:
         return 7
 
-def _get_base_case_4_edges(case: int) -> int:
-    if case == 8:
-        return 1
-    elif case == 9:
-        return 5
-    else:
-        return case
+def _mirror_case_4_edges(case: int) -> int:
+    match case:
+        case 1: return 8
+        case 5: return 9
+        case 8: return 1
+        case 9: return 5
+    return case
 
 def _get_case_6_edges(edge_list: list[int]) -> int:
     # calculate distinct cases
