@@ -1,7 +1,7 @@
 from square1 import Square1
 
 class StateCS:
-    size: int = 125
+    size: int = 113 # = 65 * 2 - 5 - 12
 
     def __init__(self, square1: Square1) -> None:
         self.square1: Square1 = square1.get_copy()
@@ -10,37 +10,68 @@ class StateCS:
 
         # calculate cubeshape
         # get shapes of layers
-        up_shape: list[int]
-        down_shape: list[int]
-        up_shape, up_turn = self._get_shape(0)
-        down_shape, down_turn = self._get_shape(8)
-        self.square1.turn_layers((up_turn, down_turn))
-        # flips cubeshape case
-        if len(up_shape) < len(down_shape):
+        up_shape: list[int] = self._get_shape(True)
+        down_shape: list[int] = self._get_shape(False)
+        # flips shape with more edges to up
+        if len(up_shape) > 4:
             up_shape, down_shape = down_shape, up_shape
-        # gets cubeshape type
-        self.cs += 30 * (len(up_shape) - 4)
-        match len(up_shape) - 4:
+        match 4 - len(up_shape):
             case 0:
-                # turn layers for correct parity calculation
-                highest: int = max(up_shape)
-                index: int = up_shape.index(highest)
-                if up_shape[index - 1] == highest:
-                    index -= 1
-                
                 # handle all shapes with 4 + 4 edges
                 up_case: int = _get_case_4_edges(up_shape)
                 down_case: int = _get_case_4_edges(down_shape)
-                self._set_cs_44_edges(up_case, down_case)
+
+                # mirrors if one case is asymmetrical
+                # except for:
+                # 8 + 1, 8 + 5
+                # 9 + 5
+                # 1 + 8, 5 + 8
+                # 5 + 9
+                if (up_case > 7 or down_case > 7 and (not
+                        (up_case == 1 or up_case == 5 or
+                        down_case == 1 or down_case == 5) or
+                        (up_case == 9 and down_case == 1 or
+                        up_case == 1 and down_case == 9))):
+                    # mirrors case
+                    if up_case == 0 or up_case == 4 or up_case == 6 or up_case == 5 or up_case == 9:
+                        self.parity += 1
+                    if up_case == 0 or up_case == 4 or up_case == 6 or up_case == 5 or up_case == 9:
+                        self.parity += 1
+                    up_case = _get_base_case_4_edges(up_case)
+                    down_case = _get_base_case_4_edges(down_case)
+
+                if up_case < down_case:
+                    # flips case
+                    up_case, down_case = down_case, up_case
+
+                # corrects case number for cubeshape number
+                if up_case == 8:
+                    if down_case == 1:
+                        down_case = 0
+                    else:
+                        down_case = 1
+                elif up_case == 9:
+                    up_case = 8
+                    down_case = 2
+
+                self.cs = (up_case * (up_case + 1) // 2) + down_case
+                # turns layers for parity calculation
+                up_turn: int = self._get_shape_turn(True, up_shape)
+                down_turn: int = self._get_shape_turn(False, down_shape)
+                self.square1.turn_layers((up_turn, down_turn))
             case 1:
                 # handle all shapes with 6 + 2 edges
                 up_case: int = _get_case_6_edges(up_shape)
                 down_case: int = _get_case_2_edges(down_shape)
-                # converts the two cases to a combined CS case
+                # mirrors asymmetric states to bases mirror states
                 if up_case > 6:
-                    self.parity = 1
-                    up_case = _get_base_case_6_edges(up_case)
+                    self.parity += 1
+                    up_case = 7 - up_case
+                # converts the two cases to a combined CS case
                 self.cs = 39 + 7 * down_case + up_case
+                # symmetric states always tale same amount of slices, no matter parity
+                if up_case > 2:
+                    return
             case 2:
                 # handle all shapes with 8 + 0 edges
                 self.cs = 60 + min(up_shape)
@@ -54,37 +85,32 @@ class StateCS:
                     self.parity += 1
         self.parity %= 2
 
-    # index is in range [0, 125[
+    # index is in range [0, 113[
     def get_index(self) -> int:
         return self.parity * 70 + self.cs
 
-    def _get_shape(self, turn: int) -> tuple[list[int], int]:
+    def _flip(self) -> None:
+        self.square1.pieces = self.square1.pieces[::-1]
+
+    def _mirror(self, up_pieces: int) -> None:
+        self.square1.pieces[:up_pieces] = self.square1.pieces[:up_pieces][::-1]
+        self.square1.pieces[up_pieces:] = self.square1.pieces[up_pieces:][::-1]
+        for piece in self.square1.pieces:
+            piece = (piece + 4) % 8 + 8
+
+    def _get_shape(self, is_up: bool) -> list[int]:
         # gets shape of layer with start at turn
         shape: list[int] = [0]
+        turn: int = 0
         angle: int = 0
         while angle < 12:
-            if self.square1.pieces[turn] % 2 == 0:
+            if self.square1.pieces[turn if is_up else 15 - turn] % 2 == 0:
                 shape.append(0)
                 angle += 2
             else:
                 shape[-1] += 1
                 angle += 1
             turn += 1
-        # gets layer turn
-        highest: int = max(shape)
-        index: int = shape.index(highest)
-        # deals with 2200, 330, 11000 and 10100
-        if shape.count(highest) == 2:
-            if shape[index + 1] == 0:
-                if highest == 1:
-                    if shape[index + 2] == 0:
-                        index += 1
-                else:
-                    index += 1
-        # calculates turn
-        turn = 0
-        for i in range(index):
-            turn += shape[i] + 1
         # remove excess number
         if shape[0] == 0:
             shape.pop(0)
@@ -93,37 +119,30 @@ class StateCS:
         else:
             #deals with overflow
             shape[0] += shape[-1]
-            # turn is different
-            if shape[0] > highest:
-                turn = 8 - shape[-1]
-            elif shape[0] == highest and shape[index - 1] != 0:
-                turn = 8 - shape[-1]
             shape.pop(-1)
-        return shape, turn
+        return shape
 
-    def _set_cs_44_edges(self, up_case: int, down_case: int) -> None:
-        # converts the two cases to a combined CS case
-        if up_case > 7 or down_case > 7:
-            extra: int = max(up_case, down_case) - 8
-            if up_case == 5 or down_case == 5:
-                extra += 1
-            elif not (up_case == 1 or down_case == 1):
-                extra = -1
-            if extra != -1:
-                up_case = 8
-                down_case = extra
+    def _get_shape_turn(self, is_up: bool, shape: list[int]) -> int:
+        highest: int = max(shape)
+        piece_count: int = 12 - len(shape)
+
+        edge_count: int = 0
+        turn: int = 0
+        while edge_count < highest:
+            if self.square1.pieces[turn if is_up else 15 - turn] % 2 == 0:
+                edge_count = 0
             else:
-                up_case = _get_base_case_4_edges(up_case)
-                down_case = _get_base_case_4_edges(down_case)
-                if (up_case == 2 or down_case == 2 or
-                    up_case == 3 or down_case == 3 or
-                    up_case == 7 or down_case == 7):
-                    self.parity = 1
-                up_case, down_case = _bigger_first(up_case, down_case)
-        else:
-            up_case, down_case = _bigger_first(up_case, down_case)
-        self.cs = (up_case * (up_case + 1) // 2) + down_case
+                edge_count += 1
+            turn = (turn + 1) % piece_count
 
+        if shape.count(highest) == 2:
+            if self.square1.pieces[(turn + 1) if is_up else 15 - (turn + 1)] % 2 != 0:
+                turn = (turn + 1 + highest) % piece_count
+            elif highest == 1:
+                if self.square1.pieces[(turn + 2) if is_up else 15 - (turn + 2)] % 2 != 0:
+                    turn = (turn + 3) % piece_count
+
+        return turn if is_up else (piece_count - turn) & piece_count
 
 def _get_case_4_edges(edge_list: list[int]) -> int:
     # calculate distinct cases
@@ -150,7 +169,7 @@ def _get_case_4_edges(edge_list: list[int]) -> int:
         return 9
     else:
         return 7
-    
+
 def _get_base_case_4_edges(case: int) -> int:
     if case == 8:
         return 1
@@ -166,21 +185,19 @@ def _get_case_6_edges(edge_list: list[int]) -> int:
     if highest == 3 and previous == 0:
         previous = 3
     case: int = highest - previous + min(highest - 2, 3)
-    # move mirrors to back
-    if case < 3:
-        return case
-    elif case == 3:
-        return 7
-    elif 3 < case < 6:
-        return case - 1
-    elif case == 6:
-        return 8
-    elif case == 7:
-        return 5
-    elif case == 8:
-        return 9
-    else:
-        return 6
+    # move mirrors to back and base mirrors to front
+    match case:
+        case 0: return 3
+        case 1: return 4
+        case 2: return 0
+        case 3: return 7
+        case 4: return 1
+        case 5: return 5
+        case 6: return 8
+        case 7: return 2
+        case 8: return 9
+        case 9: return 6
+    return 3
 
 def _get_case_2_edges(edge_list: list[int]) -> int:
     try:
@@ -192,19 +209,3 @@ def _get_case_2_edges(edge_list: list[int]) -> int:
             return 1
         else:
             return 2
-
-def _get_base_case_6_edges(case: int) -> int:
-    if case == 7:
-        return 2
-    elif case == 8:
-        return 3
-    elif case == 9:
-        return 5
-    else:
-        return case
-
-def _bigger_first(num1: int, num2: int) -> tuple[int, int]:
-    if num1 < num2:
-        return num2, num1
-    else:
-        return num1, num2
