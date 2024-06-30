@@ -1,3 +1,5 @@
+from multiprocessing import Pool
+
 import numpy as np
 
 from square1 import Square1
@@ -58,7 +60,7 @@ class PruningTable:
             # Gets the unique turns for the State and Cube
             turns: list[tuple[int, int]]
             if self.state_type == PruningTable.SQSQ:
-                turns = state.square1.get_unique_turns_sq_sq()
+                turns = state.square1.get_all_turns_sq_sq()
             else:
                 turns = state.square1.get_unique_turns()
             for turn in turns:
@@ -73,6 +75,42 @@ class PruningTable:
                 # Appends to open if successful and still in slice limit
                 if self._write(index, slices) and slices < self.max_slices:
                     open.append((next_state, slices))
+
+    def generate_pruning_table_mulproc(self) -> None:
+        print("Generating Pruning Table using multiple cores")
+        self._print_state()
+        if self.max_slices == 0:
+            return
+        open: list[list[(StateCS | StateSqSq)]] = [[self._create_state()]]
+        slice_depth: int = 0
+        while len(open) > 0:
+            print("Check and write states for slice depth", slice_depth)
+            closed: list[(StateCS | StateSqSq)] = []
+            while len(open) > 0:
+                states: list[(StateCS | StateSqSq)] = open.pop(0)
+                for state in states:
+                    if self._write(state.get_index(), slice_depth) and slice_depth < self.max_slices:
+                        closed.append(state)
+            slice_depth += 1
+            print("Generate states for slice depth", slice_depth)
+            with Pool(6) as pool:
+                open = pool.map(self._generate_next_states, closed)
+
+    def _generate_next_states(self, state: (StateCS | StateSqSq)) -> list[(StateCS | StateSqSq)]:
+        next_states: list[(StateCS | StateSqSq)] = []
+        turns: list[tuple[int, int]]
+        if self.state_type == PruningTable.SQSQ:
+            turns = state.square1.get_all_turns_sq_sq()
+        else:
+            turns = state.square1.get_unique_turns()
+        for turn in turns:
+            # Turns and slices on a copied Cube
+            next_cube: Square1 = state.square1.get_copy()
+            next_cube.turn_layers(turn)
+            next_cube.turn_slice()
+            # Reduces Cube to State and gets index
+            next_states.append(self._create_state(next_cube))
+        return next_states
 
     def print_table(self) -> None:
         for slice_count in self.table:
@@ -102,15 +140,17 @@ class PruningTable:
 
     def _write(self, index: int, value: int) -> bool:
         table_val: int = self.table[index // 2]
-        left: int = table_val // 16
-        right: int = table_val % 16
         if index % 2 == 0:
+            left: int = table_val // 16
             if left == 15:
+                right: int = table_val % 16
                 self.table[index // 2] = value * 16 + right
                 self._increase_fill()
                 return True
         else:
+            right: int = table_val % 16
             if right == 15:
+                left: int = table_val // 16
                 self.table[index // 2] = left * 16 + value
                 self._increase_fill()
                 return True

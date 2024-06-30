@@ -2,7 +2,7 @@ from square1 import Square1
 
 class StateSqSq:
     size: int = 4354560 # = 6 * 3! 3! 8! / 2
-    max_slices: int = 12
+    max_slices: int = 9
 
     def __init__(self, square1: Square1) -> None:
         self.square1: Square1 = square1
@@ -25,9 +25,9 @@ class StateSqSq:
     def calculate_orientation(self) -> None:
         # gets the orientation of the corners on the up layer
         orientations: list[bool] = []
-        alignment: int = self.square1.pieces[0] % 2
+        up_alignment: int = self.square1.pieces[0] % 2
         blacks: int = 0
-        for i in range(alignment, 8, 2):
+        for i in range(up_alignment, 8, 2):
             is_black: bool = self.square1.pieces[i] < 8
             # counts the black corners in the up layer
             if is_black:
@@ -62,8 +62,8 @@ class StateSqSq:
 
         # gets the orientation of the corners on the down layer
         orientations = []
-        alignment = self.square1.pieces[8] % 2
-        for i in range(8 + alignment, 16, 2):
+        down_alignment: int = self.square1.pieces[8] % 2
+        for i in range(8 + down_alignment, 16, 2):
             orientations.append(self.square1.pieces[i] < 8)
         # gets the co case for both layers
         # and gets the rotation of the down layer
@@ -79,7 +79,7 @@ class StateSqSq:
                 elif not orientations[down_rot + 1]:
                     self.co += 2
         # rotates the layers for EP
-        self.square1.turn_layers((up_rot * 2, down_rot * 2))
+        self.square1.turn_layers((up_rot * 2 + up_alignment, down_rot * 2 + down_alignment))
 
     # calculates the piece permutation
     def calculate_permutation(self) -> None:
@@ -117,19 +117,21 @@ class StateSqSq:
                 self.cp_black += higher_black * factor
                 self.cp_white += higher_white * factor
         factor = 1
-        for edge in edges:
+        for i in range(len(edges)):
             # cycle
-            if edge < 4:
-                edge = (edge - black_offset) % 4
+            if edges[i] < 4:
+                edges[i] = (edges[i] - black_offset) % 4
             else:
-                edge = (edge - white_offset) % 4 + 4
+                edges[i] = (edges[i] - white_offset) % 4 + 4
             # permutation calculation
             if i > 0:
                 factor *= i
                 higher: int = 0
                 for j in range(i):
-                    if edges[j] > edge:
+                    if edges[j] > edges[i]:
                         higher += 1
                 self.ep += higher * factor
         # divides by 2 because parity is even
         self.ep //= 2
+        # cycles pieces for more state generation
+        self.square1.cycle_colors((black_offset, white_offset))

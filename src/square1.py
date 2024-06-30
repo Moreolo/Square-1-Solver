@@ -49,6 +49,36 @@ class Square1:
         self.pieces[:up_turns] = self.pieces[turn[0]:up_turns] + self.pieces[:turn[0]]
         self.pieces[up_turns:] = self.pieces[up_turns:][turn[1]:] + self.pieces[up_turns:][:turn[1]]
 
+    def cycle_colors(self, cycle: tuple[int, int]) -> None:
+        if cycle[0] == 0 and cycle[1] == 0:
+            return
+        for piece in self.pieces:
+            if piece < 8:
+                piece = (piece - cycle[0]) % 8
+            else:
+                piece = (piece - cycle[1]) % 8 + 8
+
+    def flip_colors(self) -> None:
+        for piece in self.pieces:
+            piece = 14 - piece
+            if piece == 7 or piece < 0:
+                piece += 8
+
+    def flip_layers(self) -> None:
+        self.pieces = self.pieces[::-1]
+
+    def mirror_layers(self) -> None:
+        # calculates the pieces on the up layer
+        up_turns: int = 0
+        angle: int = 0
+        while angle < 12:
+            angle += self.get_angle(up_turns)
+            up_turns += 1
+        self.pieces[:up_turns] = self.pieces[:up_turns][::-1]
+        self.pieces[up_turns:] = self.pieces[up_turns:][::-1]
+        for piece in self.pieces:
+            piece = (piece + 4) % 8 + 8
+
     def get_unique_turns(self) -> list[tuple[int, int]]:
         turn: int = 0
         angle: int = 0
@@ -104,6 +134,22 @@ class Square1:
                         turns.append((up_at[2], pot_turns[index]))
             angle += self.get_angle(up_turns_no + turn)
             turn += 1
+        return turns
+
+    def get_all_turns_sq_sq(self) -> list[tuple[int, int]]:
+        turns: list[tuple[int, int]] = []
+        if self.pieces[0] % 2 != self.pieces[-1] % 2:
+            # same alignment
+            for i in range(0, 8, 2):
+                for j in range(0, 8, 2):
+                    turns.append((i + 1, j))
+                    turns.append((i, j + 1))
+        else:
+            # different alignment
+            for i in range(0, 8, 2):
+                for j in range(0, 8, 2):
+                    turns.append((i ,j))
+                    turns.append((i + 1, j + 1))
         return turns
 
     def get_unique_turns_sq_sq(self) -> list[tuple[int, int]]:
