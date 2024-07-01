@@ -4,7 +4,7 @@ class StateCS:
     size: int = 113 # = 65 * 2 - 5 - 12
     max_slices: int = 7
 
-    def __init__(self, square1: Square1) -> None:
+    def __init__(self, square1: Square1 = Square1()) -> None:
         self.square1: Square1 = square1
         self.cs: int = 0 # 65 = 39 + 21 + 5
         self.parity: int = 0 # 2
@@ -15,7 +15,7 @@ class StateCS:
         down_shape: list[int] = self._get_shape(False)
         # flips shape with more edges to up
         if len(up_shape) > 4:
-            self._flip()
+            self.square1.flip_layers()
             up_shape, down_shape = down_shape, up_shape
         match 4 - len(up_shape):
             case 0:
@@ -35,25 +35,13 @@ class StateCS:
                         (up_case == 9 and down_case == 1 or
                         up_case == 1 and down_case == 9))):
                     # mirrors case
-                    # if (up_case == 0 or
-                    #     up_case == 4 or
-                    #     up_case == 6 or
-                    #     up_case == 5 or
-                    #     up_case == 9):
-                    #     self.parity += 1
-                    # if (down_case == 0 or
-                    #     down_case == 4 or
-                    #     down_case == 6 or
-                    #     down_case == 5 or
-                    #     down_case == 9):
-                    #     self.parity += 1
-                    self._mirror(8)
+                    self.square1.mirror_layers(8)
                     up_case = _mirror_case_4_edges(up_case)
                     down_case = _mirror_case_4_edges(down_case)
 
                 if up_case < down_case:
                     # flips case
-                    self._flip()
+                    self.square1.flip_layers()
                     up_shape, down_shape = down_shape, up_shape
                     up_case, down_case = down_case, up_case
 
@@ -78,7 +66,7 @@ class StateCS:
                 down_case: int = _get_case_2_edges(down_shape)
                 # mirrors asymmetric states to base mirror states
                 if up_case > 6:
-                    self._mirror(9)
+                    self.square1.mirror_layers(9)
                     up_case -= 7
                 # converts the two cases to a combined CS case
                 self.cs = 39 + 3 * up_case + down_case
@@ -101,15 +89,6 @@ class StateCS:
     # index is in range [0, 113[
     def get_index(self) -> int:
         return self.parity * 65 + self.cs
-
-    def _flip(self) -> None:
-        self.square1.pieces = self.square1.pieces[::-1]
-
-    def _mirror(self, up_pieces: int) -> None:
-        self.square1.pieces[:up_pieces] = self.square1.pieces[:up_pieces][::-1]
-        self.square1.pieces[up_pieces:] = self.square1.pieces[up_pieces:][::-1]
-        for piece in self.square1.pieces:
-            piece = (piece + 4) % 8 + 8
 
     def _get_shape(self, is_up: bool) -> list[int]:
         # gets shape of layer with start at turn

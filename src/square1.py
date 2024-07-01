@@ -1,8 +1,55 @@
+import numpy as np
+
+sqsq_unique_turns_ba: list[tuple[int, int]] = [(1, 0), (5, 0), (3, 0), (7, 0),
+                                               (0, 1), (0, 5), (2, 1), (6, 1),
+                                               (1, 2), (1, 6), (7, 2), (7, 6),
+                                               (0, 3), (0, 7), (2, 7), (6, 7)]
+sqsq_unique_turns_ua: list[tuple[int, int]] = [(0, 0), (4, 0), (2, 0), (6, 0),
+                                               (1, 1), (5, 1), (3, 1), (7, 1),
+                                               (0, 2), (0, 6), (2, 2), (2, 6),
+                                               (1, 3), (1, 7), (7, 7), (7, 3)]
+sqsq_unique_turns_da: list[tuple[int, int]] = [(0, 0), (4, 0), (2, 0), (6, 0),
+                                               (1, 1), (1, 5), (3, 1), (7, 1),
+                                               (0, 2), (0, 6), (2, 2), (2, 6),
+                                               (1, 3), (1, 7), (7, 7), (3, 7)]
+
+sqsq_all_turns_a: list[tuple[int, int]] = [(1, 0), (5, 0), (3, 0), (7, 0),
+                                           (5, 4), (5, 4), (3, 4), (7, 4),
+                                           (0, 1), (0, 5), (2, 1), (6, 1),
+                                           (4, 1), (4, 5), (2, 5), (6, 5),
+                                           (1, 2), (1, 6), (7, 2), (7, 6),
+                                           (5, 2), (5, 6), (3, 2), (3, 6),
+                                           (0, 3), (0, 7), (2, 7), (6, 7),
+                                           (4, 3), (4, 7), (2, 3), (6, 3)]
+sqsq_all_turns_m: list[tuple[int, int]] = [(0, 0), (4, 0), (2, 0), (6, 0),
+                                           (0, 4), (4, 4), (2, 4), (6, 4),
+                                           (1, 1), (1, 5), (3, 1), (7, 1),
+                                           (5, 1), (5, 5), (3, 5), (7, 5),
+                                           (0, 2), (0, 6), (2, 2), (2, 6),
+                                           (4, 2), (4, 6), (6, 2), (6, 6),
+                                           (1, 3), (1, 7), (7, 7), (3, 7),
+                                           (5, 3), (5, 7), (7, 3), (3, 3)]
+
 class Square1:
-    def __init__(self, pieces: list[int] = [i for i in range(16)]) -> None:
+    def __init__(self, pieces: (list[int] | int | np.uint64) = [i for i in range(16)]) -> None:
         # starts on U at FL, goes cw
         # continues on D at BR, goes ccw
-        self.pieces: list[int] = pieces
+        if type(pieces) is np.uint64:
+            pieces = int(pieces)
+        if type(pieces) is int:
+            self.pieces: list[int] = []
+            for i in range(16):
+                self.pieces.insert(0, pieces % 16)
+                pieces //= 16
+        elif type(pieces) is list:
+            self.pieces: list[int] = pieces
+
+    def get_int(self) -> int:
+        num: int = 0
+        for piece in self.pieces:
+            num *= 16
+            num += piece
+        return num
 
     def get_copy(self) -> "Square1":
         return Square1(self.pieces[:])
@@ -52,32 +99,37 @@ class Square1:
     def cycle_colors(self, cycle: tuple[int, int]) -> None:
         if cycle[0] == 0 and cycle[1] == 0:
             return
-        for piece in self.pieces:
-            if piece < 8:
-                piece = (piece - cycle[0]) % 8
+        for i in range(16):
+            if self.pieces[i] < 8:
+                self.pieces[i] = (self.pieces[i] - cycle[0] * 2) % 8
             else:
-                piece = (piece - cycle[1]) % 8 + 8
+                self.pieces[i] = (self.pieces[i] - cycle[1] * 2) % 8 + 8
 
     def flip_colors(self) -> None:
-        for piece in self.pieces:
-            piece = 14 - piece
-            if piece == 7 or piece < 0:
-                piece += 8
+        for i in range(16):
+            self.pieces[i] = 14 - self.pieces[i]
+            if self.pieces[i] == 7 or self.pieces[i] < 0:
+                self.pieces[i] += 8
 
     def flip_layers(self) -> None:
         self.pieces = self.pieces[::-1]
 
-    def mirror_layers(self) -> None:
-        # calculates the pieces on the up layer
-        up_turns: int = 0
-        angle: int = 0
-        while angle < 12:
-            angle += self.get_angle(up_turns)
-            up_turns += 1
+    def mirror_layers(self, up_turns: int = -1) -> None:
+        # calculates the pieces on the up layer if not defined
+        if up_turns == -1:
+            up_turns = 0
+            angle: int = 0
+            while angle < 12:
+                angle += self.get_angle(up_turns)
+                up_turns += 1
+        # mirrors cube
         self.pieces[:up_turns] = self.pieces[:up_turns][::-1]
         self.pieces[up_turns:] = self.pieces[up_turns:][::-1]
-        for piece in self.pieces:
-            piece = (piece + 4) % 8 + 8
+        for i in range(16):
+            if self.pieces[i] < 8:
+                self.pieces[i] = (self.pieces[i] + 4) % 8 + 8
+            else:
+                self.pieces[i] = (self.pieces[i] + 4) % 8
 
     def get_unique_turns(self) -> list[tuple[int, int]]:
         turn: int = 0
@@ -137,35 +189,21 @@ class Square1:
         return turns
 
     def get_all_turns_sq_sq(self) -> list[tuple[int, int]]:
-        turns: list[tuple[int, int]] = []
         if self.pieces[0] % 2 != self.pieces[-1] % 2:
-            # same alignment
-            for i in range(0, 8, 2):
-                for j in range(0, 8, 2):
-                    turns.append((i + 1, j))
-                    turns.append((i, j + 1))
+            return sqsq_all_turns_a
         else:
-            # different alignment
-            for i in range(0, 8, 2):
-                for j in range(0, 8, 2):
-                    turns.append((i ,j))
-                    turns.append((i + 1, j + 1))
-        return turns
+            return sqsq_all_turns_m
 
     def get_unique_turns_sq_sq(self) -> list[tuple[int, int]]:
         if self.pieces[0] % 2 != self.pieces[-1] % 2:
             # same alignment
-            return [(1, 0), (5, 0), (3, 0), (7, 0),
-                    (0, 1), (0, 5), (2, 1), (6, 1),
-                    (1, 2), (1, 6), (7, 2), (7, 6),
-                    (0, 3), (0, 7), (2, 7), (6, 7)]
+            return sqsq_unique_turns_ba
+        elif self.pieces[0] % 2 == 0:
+            # up aligned
+            return sqsq_unique_turns_ua
         else:
-            # different alignment
-            top_aligned: bool = self.pieces[0] % 2 == 0
-            return [(0, 0), (4, 0), (2, 0), (6, 0),
-                    (1, 1), (5, 1) if top_aligned else (1, 5), (3, 1), (7, 1),
-                    (0, 2), (0, 6), (2, 2), (2, 6),
-                    (1, 3), (1, 7), (7, 7), (7, 3) if top_aligned else (3, 7)]
+            # down aligned
+            return sqsq_unique_turns_da
 
     def solve_auf(self) -> None:
         self.turn_layers((self.pieces.index(0), self.pieces.index(8) - 8))
