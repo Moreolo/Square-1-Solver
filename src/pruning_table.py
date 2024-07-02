@@ -77,18 +77,18 @@ class PruningTable:
         print("Table Size:", self.size)
         self.slice_depth: int = 0
         opened: list[int] = [Square1().get_int()]
-        while len(opened) > 0:
+        while opened:
             print("Check and write states for slice depth", self.slice_depth)
             closed: list[int] = []
-            while len(opened) > 0:
+            while opened:
                 sq1: int = opened.pop()
                 if self._write(StateCS(Square1(sq1)).get_index(), self.slice_depth) and self.slice_depth < self.max_slices:
                     closed.append(sq1)
 
-            if len(closed) > 0 and self.filled < self.size:
+            if closed and (self.filled < self.size):
                 self.slice_depth += 1
                 print("Generate states for slice depth", self.slice_depth)
-                while len(closed) > 0:
+                while closed:
                     sq1: int = closed.pop()
                     for mirror in range(2):
                         base: Square1 = Square1(sq1)
@@ -109,7 +109,7 @@ class PruningTable:
         self.slice_depth: int = 0
         opened: np.ndarray = np.array([[Square1().get_int()]], dtype=np.uint64)
 
-        while len(opened) > 0:
+        while opened.size:
             print("Check and write states for slice depth", self.slice_depth)
             closed: list[int] = []
             for arr in opened:
@@ -117,7 +117,7 @@ class PruningTable:
                 for sq1 in result:
                     closed.append(sq1)
             opened = np.empty(0)
-            if len(closed) > 0 and self.filled < self.size:
+            if closed and (self.filled < self.size):
                 self.slice_depth += 1
                 print("Generate states for slice depth", self.slice_depth)
                 closed_arr: np.ndarray = np.array(closed, dtype=np.uint64)
