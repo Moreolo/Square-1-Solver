@@ -24,8 +24,9 @@ class PruningTable:
 
         self.table: np.ndarray = np.full((self.size + 1) // 2, 255, dtype=np.uint8)
         self.filled: int = 0
-        self.step: float = .1 if self.state_type == PruningTable.CS else .001
-        self.print: float = self.step
+        self.step_rel: float = .1 if self.state_type== PruningTable.CS else .001
+        self.step_abs: int = int(self.step_rel * self.size)
+        self.step: float = 1
 
     def write_file(self) -> None:
         arr: bytes = self.table.tobytes()
@@ -59,7 +60,6 @@ class PruningTable:
         print("Table Size:", self.size)
         self.slice_depth: int = 0
         opened: list[int] = [Square1().get_int()]
-
         while len(opened) > 0:
             print("Check and write states for slice depth", self.slice_depth)
             closed: list[int] = []
@@ -67,24 +67,22 @@ class PruningTable:
                 sq1: int = opened.pop()
                 if self._write(StateCS(Square1(sq1)).get_index(), self.slice_depth) and self.slice_depth < self.max_slices:
                     closed.append(sq1)
-            if len(closed) > 0:
+
+            if len(closed) > 0 and self.filled < self.size:
                 self.slice_depth += 1
                 print("Generate states for slice depth", self.slice_depth)
                 while len(closed) > 0:
                     sq1: int = closed.pop()
-                    for flip_l in range(2):
-                        for mirror in range(2):
-                            base: Square1 = Square1(sq1)
-                            if flip_l:
-                                base.flip_layers()
-                            if mirror:
-                                base.mirror_layers()
-                            turns: list[tuple[int, int]] = base.get_unique_turns()
-                            for turn in turns:
-                                square1: Square1 = base.get_copy()
-                                square1.turn_layers(turn)
-                                square1.turn_slice()
-                                opened.append(square1.get_int())
+                    for mirror in range(2):
+                        base: Square1 = Square1(sq1)
+                        if mirror:
+                            base.mirror_layers()
+                        turns: list[tuple[int, int]] = base.get_unique_turns()
+                        for turn in turns:
+                            square1: Square1 = base.get_copy()
+                            square1.turn_layers(turn)
+                            square1.turn_slice()
+                            opened.append(square1.get_int())
         print("Maximum slice depth", self.slice_depth)
 
     def _gpt_sqsq(self) -> None:
@@ -93,7 +91,7 @@ class PruningTable:
         print("Table Size:", self.size)
         self.slice_depth: int = 0
         opened: np.ndarray = np.array([[Square1().get_int()]], dtype=np.uint64)
-        
+
         while len(opened) > 0:
             print("Check and write states for slice depth", self.slice_depth)
             closed: list[int] = []
@@ -102,18 +100,18 @@ class PruningTable:
                 for sq1 in result:
                     closed.append(sq1)
             opened = np.empty(0)
-            if len(closed) > 0:
+            if len(closed) > 0 and self.filled < self.size:
                 self.slice_depth += 1
                 print("Generate states for slice depth", self.slice_depth)
                 closed_arr: np.ndarray = np.array(closed, dtype=np.uint64)
                 closed = []
-                opened = np.empty((len(closed_arr), 256), dtype=np.uint64)
+                opened = np.empty((len(closed_arr), 16), dtype=np.uint64)
 
                 with Pool(6) as pool:
                     index: int = 0
                     step = 0.1
                     pr = step
-                    for result in pool.imap_unordered(self._gnc_sqsq, closed_arr, chunksize=40):
+                    for result in pool.imap_unordered(self._gnc_sqsq, closed_arr, chunksize=100):
                         opened[index] = result
                         index += 1
                         while pr <= float(index) / len(closed_arr):
@@ -133,24 +131,14 @@ class PruningTable:
         return closed
 
     def _gnc_sqsq(self, sq1: int) -> np.ndarray:
-        sq1s: np.ndarray = np.empty(256, dtype=np.uint64)
+        sq1s: np.ndarray = np.empty(16, dtype=np.uint64)
         square1: Square1 = Square1(sq1)
-        turns: list[tuple[int, int]] = square1.get_all_turns_sq_sq()
-        for flip_l in range(2):
-            for flip_c in range(2):
-                for mirror in range(2):
-                    for i in range(len(turns)):
-                        if flip_l:
-                            square1.flip_layers()
-                        if flip_c:
-                            square1.flip_colors()
-                        if mirror:
-                            square1.mirror_layers(8)
-                        square1.turn_layers(turns[i])
-                        square1.turn_slice()
-                        # sq1s[i * 4 + mirror * 2 + flip_c] = square1.get_int()
-                        sq1s[i * 8 + mirror * 4 + flip_c * 2 + flip_l] = square1.get_int()
-                        square1 = Square1(sq1)
+        turns: list[tuple[int, int]] = square1.get_unique_turns_sq_sq()
+        for i in range(len(turns)):
+            square1.turn_layers(turns[i])
+            square1.turn_slice()
+            sq1s[i] = square1.get_int()
+            square1 = Square1(sq1)
         return sq1s
 
 
@@ -186,6 +174,6 @@ class PruningTable:
 
     def _increase_fill(self) -> None:
         self.filled += 1
-        while self.print <= float(self.filled) / self.size:
-            print(f"{self.print:.1%}", "filled")
-            self.print += self.step
+        while self.filled >= self.step * self.step_abs:
+            print(f"{self.step * self.step_rel:.1%}", "filled")
+            self.step += 1

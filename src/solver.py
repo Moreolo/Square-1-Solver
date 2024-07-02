@@ -13,24 +13,21 @@ class Solver:
     def solve(self, square1: Square1, bar_solved: bool) -> list[tuple[int, int]]:
         human_readables: list[tuple[int, int]] = []
         slices: int = self._get_slices_cs(square1.get_copy())
+        print("CSP solvable in", slices)
         while slices > 0:
             turn: tuple[int, int] = self._get_next_turn_cs(square1, slices)
             human_readables.append(square1.get_human_readable(turn))
-            print(square1.get_human_readable(turn))
             square1.turn_layers(turn)
             square1.turn_slice()
-            print(square1.pieces)
             bar_solved = not bar_solved
             slices -= 1
         slices: int = self._get_slices_sqsq(square1.get_copy())
-        print("solvable in", slices)
+        print("Square Square solvable in", slices)
         while slices > 1:
             turn: tuple[int, int] = self._get_next_turn_sqsq(square1, slices)
             human_readables.append(square1.get_human_readable(turn))
-            print(square1.get_human_readable(turn))
             square1.turn_layers(turn)
             square1.turn_slice()
-            print(square1.pieces)
             bar_solved = not bar_solved
             slices -= 1
         turn: tuple[int, int] = self._get_next_turn_sqsq(square1, slices)
@@ -56,11 +53,10 @@ class Solver:
         return self.table_cs.read(StateCS(square1).get_index())
     
     def _get_next_turn_sqsq(self, square1: Square1, slices: int) -> tuple[int, int]:
-        for turn in square1.get_all_turns_sq_sq():
+        for turn in square1.get_unique_turns_sq_sq():
             copy: Square1 = square1.get_copy()
             copy.turn_layers(turn)
             copy.turn_slice()
-            print(self._get_slices_sqsq(copy))
             if self._get_slices_sqsq(copy) < slices - 1:
                 raise ValueError
             elif self._get_slices_sqsq(copy) == slices - 1:

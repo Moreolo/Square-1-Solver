@@ -18,7 +18,15 @@ for turn1 in square1.get_unique_turns_sq_sq():
                 copy3: Square1 = copy2.get_copy()
                 copy3.turn_layers(turn3)
                 copy3.turn_slice()
-                if table.read(StateSqSq(copy3.get_copy()).get_index()) == 0:
-                    print(table.read(StateSqSq(copy2.get_copy()).get_index()))
+                # if table.read(StateSqSq(copy3.get_copy()).get_index()) > 2:
+                #     for turn4 in copy3.get_unique_turns_sq_sq():
+                #         copy4: Square1 = copy3.get_copy()
+                #         copy4.turn_layers(turn4)
+                #         copy4.turn_slice()
+                if not (0 < table.read(StateSqSq(copy3.get_copy()).get_index()) < 4):
+                    state = StateSqSq(copy3.get_copy())
+                    print(table.read(state.get_index()))
+                    print(state.get_index())
+                    print(state.co, state.cp_black, state.cp_white, state.ep)
                     print(turn1, turn2, turn3)
-                    print(copy2.pieces)
+                    print(state.square1.pieces)

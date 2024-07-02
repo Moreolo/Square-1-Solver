@@ -31,9 +31,11 @@ sqsq_all_turns_m: list[tuple[int, int]] = [(0, 0), (4, 0), (2, 0), (6, 0),
                                            (1, 7), (5, 7), (3, 7), (7, 7)]
 
 class Square1:
-    def __init__(self, pieces: (list[int] | int | np.uint64) = [i for i in range(16)]) -> None:
+    def __init__(self, pieces: (list[int] | int | np.uint64 | None) = None) -> None:
         # starts on U at FL, goes cw
         # continues on D at BR, goes ccw
+        if pieces is None:
+            pieces = [i for i in range(16)]
         if type(pieces) is np.uint64:
             pieces = int(pieces)
         if type(pieces) is int:
@@ -267,11 +269,11 @@ class Square1:
 def _add_human_readables(hr1: tuple[int, int], hr2: tuple[int, int]) -> tuple[int, int]:
     up_angle = hr1[0] + hr2[0]
     down_angle = hr1[1] + hr2[1]
-    if up_angle < 5:
+    if up_angle < -5:
         up_angle += 12
     elif up_angle > 6:
         up_angle -= 12
-    if down_angle < 5:
+    if down_angle < -5:
         down_angle += 12
     elif down_angle > 6:
         down_angle -= 12

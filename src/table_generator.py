@@ -12,4 +12,4 @@ table.generate_pruning_table()
 #     else:
 #         if table.table[index] % 16 == 15:
 #             print(i, "not filled")
-table.write_file()
+# table.write_file()

@@ -8,6 +8,7 @@ class StateCS:
         self.square1: Square1 = square1
         self.cs: int = 0 # 65 = 39 + 21 + 5
         self.parity: int = 0 # 2
+        self.name: str = ""
 
         # calculate cubeshape
         # get shapes of layers
@@ -45,6 +46,7 @@ class StateCS:
                     up_shape, down_shape = down_shape, up_shape
                     up_case, down_case = down_case, up_case
 
+                self.name = _num_to_name_4(up_case) + " " + _num_to_name_4(down_case)
                 # corrects case number for cubeshape number
                 if up_case == 8:
                     if down_case == 1:
@@ -60,6 +62,7 @@ class StateCS:
                 up_turn: int = self._get_shape_turn(True, up_shape)
                 down_turn: int = self._get_shape_turn(False, down_shape)
                 self.square1.turn_layers((up_turn, down_turn))
+
             case 1:
                 # handle all shapes with 6 + 2 edges
                 up_case: int = _get_case_6_edges(up_shape)
@@ -68,14 +71,20 @@ class StateCS:
                 if up_case > 6:
                     self.square1.mirror_layers(9)
                     up_case -= 7
+                self.name = _num_to_name_2(down_case) + " " + _num_to_name_6(up_case)
                 # converts the two cases to a combined CS case
                 self.cs = 39 + 3 * up_case + down_case
+                # turns layers for parity calculation
+                up_turn: int = self._get_shape_turn(True, up_shape)
+                down_turn: int = self._get_shape_turn(False, down_shape)
+                self.square1.turn_layers((up_turn, down_turn))
                 # symmetric states always tale same amount of slices, no matter parity
                 if up_case > 2:
                     return
             case 2:
                 # handle all shapes with 8 + 0 edges
                 self.cs = 60 + min(up_shape)
+                self.name = _num_to_name_8(min(up_shape))
                 # state always takes same amount of slices, no matter parity
                 return
 
@@ -201,3 +210,45 @@ def _get_case_2_edges(edge_list: list[int]) -> int:
             return 1
         else:
             return 2
+
+def _num_to_name_4(num: int) -> str:
+    match num:
+        case 0: return "Square"
+        case 1: return "Good Fist"
+        case 2: return "Kite"
+        case 3: return "Barrel"
+        case 4: return "Shield"
+        case 5: return "Good Pawn"
+        case 6: return "Muffin"
+        case 7: return "Scallop"
+        case 8: return "Bad Fist"
+        case 9: return "Bad Pawn"
+    return ""
+
+def _num_to_name_2(num: int) -> str:
+    match num:
+        case 0: return "V"
+        case 1: return "L"
+        case 2: return "I"
+    return ""
+
+def _num_to_name_6(num: int) -> str:
+    match num:
+        case 0: return "3-1-2"
+        case 1: return "2-4"
+        case 2: return "1-5"
+        case 3: return "2-2-2"
+        case 4: return "3-3"
+        case 5: return "4-1-1"
+        case 6: return "6"
+    return ""
+
+def _num_to_name_8(num: int) -> str:
+    match num:
+        case 0: return "8"
+        case 1: return "7-1"
+        case 2: return "6-2"
+        case 3: return "5-3"
+        case 4: return "4-4"
+    return ""
+

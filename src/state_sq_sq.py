@@ -48,7 +48,7 @@ co_4.pop(0)
 
 class StateSqSq:
     size: int = 3628800 # = 5 * 3! 3! 8! / 2
-    max_slices: int = 12
+    max_slices: int = 9
 
     def __init__(self, square1: Square1 = Square1()) -> None:
         self.square1: Square1 = square1
@@ -115,7 +115,7 @@ class StateSqSq:
             if (self._get_corner(2) < 8) == black:
                 self.co += 1
                 up_is_opp = True
-            if (self._get_corner(4) < 8) == self._get_corner(6) < 8:
+            if (self._get_corner(4) < 8) == (self._get_corner(6) < 8):
                 self.co += 1
             # flips opp case to down
             if self.co == 3 and up_is_opp:
