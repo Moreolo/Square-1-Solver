@@ -28,14 +28,14 @@ class PruningTable:
         self.print: float = self.step
 
     def write_file(self) -> None:
-        arr: bytes = bytes(self.table)
+        arr: bytes = self.table.tobytes()
         with open(self._get_filename(), "wb") as file:
             file.write(arr)
 
     def read_file(self) -> None:
         with open(self._get_filename(), "rb") as file:
             arr: bytes = file.read((self.size + 1) // 2)
-        self.table = np.array(arr, dtype=np.uint8)
+        self.table = np.frombuffer(arr, dtype=np.uint8)
 
     def read(self, index: int) -> int:
         if index % 2 == 0:
@@ -107,13 +107,18 @@ class PruningTable:
                 print("Generate states for slice depth", self.slice_depth)
                 closed_arr: np.ndarray = np.array(closed, dtype=np.uint64)
                 closed = []
-                opened = np.empty((len(closed_arr), 128), dtype=np.uint64)
+                opened = np.empty((len(closed_arr), 256), dtype=np.uint64)
 
                 with Pool(6) as pool:
                     index: int = 0
-                    for result in pool.imap_unordered(self._gnc_sqsq, closed_arr, chunksize=10):
+                    step = 0.1
+                    pr = step
+                    for result in pool.imap_unordered(self._gnc_sqsq, closed_arr, chunksize=40):
                         opened[index] = result
                         index += 1
+                        while pr <= float(index) / len(closed_arr):
+                            print(f"{pr:.0%}", "of states generated")
+                            pr += step
         print("Maximum slice depth", self.slice_depth)
 
     def _cwi_sqsq(self, sq1s: np.ndarray) -> list[int]:
@@ -124,24 +129,28 @@ class PruningTable:
                 for index in state.get_symmetric_indecies():
                     self._write(index, self.slice_depth)
                 if self.slice_depth < self.max_slices:
-                    closed.append(sq1)
+                    closed.append(state.square1.get_int())
         return closed
 
     def _gnc_sqsq(self, sq1: int) -> np.ndarray:
-        sq1s: np.ndarray = np.empty(128, dtype=np.uint64)
+        sq1s: np.ndarray = np.empty(256, dtype=np.uint64)
         square1: Square1 = Square1(sq1)
         turns: list[tuple[int, int]] = square1.get_all_turns_sq_sq()
-        for flip_c in range(2):
-            for mirror in range(2):
-                for i in range(len(turns)):
-                    if flip_c:
-                        square1.flip_colors()
-                    if mirror:
-                        square1.mirror_layers(8)
-                    square1.turn_layers(turns[i])
-                    square1.turn_slice()
-                    sq1s[i * 4 + mirror * 2 + flip_c] = square1.get_int()
-                    square1 = Square1(sq1)
+        for flip_l in range(2):
+            for flip_c in range(2):
+                for mirror in range(2):
+                    for i in range(len(turns)):
+                        if flip_l:
+                            square1.flip_layers()
+                        if flip_c:
+                            square1.flip_colors()
+                        if mirror:
+                            square1.mirror_layers(8)
+                        square1.turn_layers(turns[i])
+                        square1.turn_slice()
+                        # sq1s[i * 4 + mirror * 2 + flip_c] = square1.get_int()
+                        sq1s[i * 8 + mirror * 4 + flip_c * 2 + flip_l] = square1.get_int()
+                        square1 = Square1(sq1)
         return sq1s
 
 

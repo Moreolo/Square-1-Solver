@@ -1,11 +1,24 @@
 from square1 import Square1
+from state_sq_sq import StateSqSq
+from pruning_table import PruningTable
 
-sq1 = Square1()
-print(sq1.pieces)
-num = sq1.get_int()
-print(num)
-sq1 = Square1(num)
-print(sq1.pieces)
-print(sq1.get_int())
-sq1.turn_layers((3, 3))
-print(sq1.get_int())
+square1: Square1 = Square1()
+table: PruningTable = PruningTable(PruningTable.SQSQ)
+table.read_file()
+for turn1 in square1.get_unique_turns_sq_sq():
+    copy1: Square1 = square1.get_copy()
+    copy1.turn_layers(turn1)
+    copy1.turn_slice()
+    for turn2 in copy1.get_unique_turns_sq_sq():
+        copy2: Square1 = copy1.get_copy()
+        copy2.turn_layers(turn2)
+        copy2.turn_slice()
+        if table.read(StateSqSq(copy2.get_copy()).get_index()) > 1:
+            for turn3 in copy2.get_unique_turns_sq_sq():
+                copy3: Square1 = copy2.get_copy()
+                copy3.turn_layers(turn3)
+                copy3.turn_slice()
+                if table.read(StateSqSq(copy3.get_copy()).get_index()) == 0:
+                    print(table.read(StateSqSq(copy2.get_copy()).get_index()))
+                    print(turn1, turn2, turn3)
+                    print(copy2.pieces)

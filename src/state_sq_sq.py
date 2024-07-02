@@ -59,7 +59,6 @@ class StateSqSq:
 
         self.up_alignment: int = self.square1.pieces[0] % 2
         self.down_alignment: int = self.square1.pieces[8] % 2
-
         self.calculate_orientation()
         self.calculate_permutation()
 
@@ -140,17 +139,15 @@ class StateSqSq:
                 down_rot = i
         # corrects rotation
         if self.co == 2:
-            if self._get_corner(0) > 7:
+            if up_rot == 3 and self._get_corner(0) > 7:
                 up_rot = 0
-            if self._get_corner(4) < 8:
+            if down_rot == 3 and self._get_corner(4) < 8:
                 down_rot = 0
         elif self.co == 3:
-            if self._get_corner(0) > 7:
+            if up_rot == 3 and self._get_corner(0) > 7:
                 up_rot = 0
         # rotates layers
         self._rotate_layers(up_rot, down_rot)
-        # get combination of flip colors, flip layers, mirror layers
-        # get possible rotations
 
     def calculate_permutation(self) -> None:
         self.cp_black = 0
