@@ -1,4 +1,4 @@
-from multiprocessing import Lock, Pool
+from multiprocessing import Pool
 
 import numpy as np
 
@@ -10,7 +10,7 @@ class PruningTable:
     CS: int = 0
     SQSQ: int = 1
 
-    def __init__(self, state_type: int = CS) -> None:
+    def __init__(self, state_type: int = CS, force_generation: bool = False) -> None:
         self.state_type = state_type
         if state_type == PruningTable.CS:
             self.size = StateCS.size
@@ -23,17 +23,30 @@ class PruningTable:
             self.max_slices = 0
 
         self.table: np.ndarray = np.full((self.size + 1) // 2, 255, dtype=np.uint8)
-        self.filled: int = 0
-        self.step_rel: float = .1 if self.state_type== PruningTable.CS else .001
-        self.step_abs: int = int(self.step_rel * self.size)
-        self.step: float = 1
 
-    def write_file(self) -> None:
+        if force_generation:
+            self.generate_pruning_table()
+            print("Saving Table to file", self._get_filename())
+            self.save_table()
+            print("Table saved")
+        else:
+            try:
+                self.load_table()
+            except FileNotFoundError:
+                print(self._get_filename(), "not found")
+                self.generate_pruning_table()
+                print("Saving Table to file", self._get_filename())
+                self.save_table()
+                print("Table saved")
+            else:
+                print("Table successfully loaded from file", self._get_filename())
+
+    def save_table(self) -> None:
         arr: bytes = self.table.tobytes()
         with open(self._get_filename(), "wb") as file:
             file.write(arr)
 
-    def read_file(self) -> None:
+    def load_table(self) -> None:
         with open(self._get_filename(), "rb") as file:
             arr: bytes = file.read((self.size + 1) // 2)
         self.table = np.frombuffer(arr, dtype=np.uint8)
@@ -46,6 +59,10 @@ class PruningTable:
 
 
     def generate_pruning_table(self) -> None:
+        self.filled: int = 0
+        self.step_rel: float = .1 if self.state_type== PruningTable.CS else .001
+        self.step_abs: int = int(self.step_rel * self.size)
+        self.step: float = 1
         if self.max_slices == 0:
             return
         print("Generating Pruning Table")
@@ -141,11 +158,6 @@ class PruningTable:
             square1 = Square1(sq1)
         return sq1s
 
-
-    def print_table(self) -> None:
-        for slice_count in self.table:
-            print(slice_count // 16, slice_count % 16)
-
     def _get_filename(self) -> str:
         if self.state_type == PruningTable.CS:
             return "pruning_table_cs.bin"
@@ -175,5 +187,8 @@ class PruningTable:
     def _increase_fill(self) -> None:
         self.filled += 1
         while self.filled >= self.step * self.step_abs:
-            print(f"{self.step * self.step_rel:.1%}", "filled")
+            if self.state_type == PruningTable.CS:
+                print(f"{self.step * self.step_rel:.0%}", "filled")
+            else:
+                print(f"{self.step * self.step_rel:.1%}", "filled")
             self.step += 1

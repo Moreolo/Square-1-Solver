@@ -4,7 +4,6 @@ from pruning_table import PruningTable
 
 square1: Square1 = Square1()
 table: PruningTable = PruningTable(PruningTable.SQSQ)
-table.read_file()
 for turn1 in square1.get_unique_turns_sq_sq():
     copy1: Square1 = square1.get_copy()
     copy1.turn_layers(turn1)
