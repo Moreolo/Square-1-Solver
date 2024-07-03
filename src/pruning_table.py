@@ -125,6 +125,7 @@ class PruningTable:
                             if self.slice_depth < self.max_slices:
                                 closed.append(state.square1.get_int())
                     if self.filled == self.size:
+                        pool.close()
                         break
 
             opened = np.empty(0)
