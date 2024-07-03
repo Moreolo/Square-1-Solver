@@ -1,4 +1,6 @@
-from multiprocessing import Pool
+from time import time
+
+from multiprocessing import get_context
 
 import numpy as np
 
@@ -66,10 +68,12 @@ class PruningTable:
         if self.max_slices == 0:
             return
         print("Generating Pruning Table")
+        start_time = time()
         if self.state_type == PruningTable.CS:
             self._gpt_cs()
         elif self.state_type == PruningTable.SQSQ:
             self._gpt_sqsq()
+        print("Generation took", f"{time() - start_time:.2f}", "seconds")
 
     def _gpt_cs(self) -> None:
         print("Cube Shape")
@@ -112,10 +116,17 @@ class PruningTable:
         while opened.size:
             print("Check and write states for slice depth", self.slice_depth)
             closed: list[int] = []
-            for arr in opened:
-                result = self._cwi_sqsq(arr)
-                for sq1 in result:
-                    closed.append(sq1)
+            with get_context("spawn").Pool(6) as pool:
+                for states in pool.imap_unordered(_gs_sqsq, opened, chunksize=10):
+                    for state in states:
+                        if self._write(state.get_index(), self.slice_depth):
+                            for index in state.get_symmetric_indecies():
+                                self._write(index, self.slice_depth)
+                            if self.slice_depth < self.max_slices:
+                                closed.append(state.square1.get_int())
+                    if self.filled == self.size:
+                        break
+
             opened = np.empty(0)
             if closed and (self.filled < self.size):
                 self.slice_depth += 1
@@ -124,11 +135,11 @@ class PruningTable:
                 closed = []
                 opened = np.empty((len(closed_arr), 16), dtype=np.uint64)
 
-                with Pool(6) as pool:
+                with get_context("spawn").Pool(6) as pool:
                     index: int = 0
                     step = 0.1
                     pr = step
-                    for result in pool.imap_unordered(self._gnc_sqsq, closed_arr, chunksize=100):
+                    for result in pool.imap_unordered(_gnc_sqsq, closed_arr, chunksize=200):
                         opened[index] = result
                         index += 1
                         while pr <= float(index) / len(closed_arr):
@@ -136,27 +147,6 @@ class PruningTable:
                             pr += step
         print("Maximum slice depth", self.slice_depth)
 
-    def _cwi_sqsq(self, sq1s: np.ndarray) -> list[int]:
-        closed: list[int] = []
-        for sq1 in sq1s:
-            state: StateSqSq = StateSqSq(Square1(sq1))
-            if self._write(state.get_index(), self.slice_depth):
-                for index in state.get_symmetric_indecies():
-                    self._write(index, self.slice_depth)
-                if self.slice_depth < self.max_slices:
-                    closed.append(state.square1.get_int())
-        return closed
-
-    def _gnc_sqsq(self, sq1: int) -> np.ndarray:
-        sq1s: np.ndarray = np.empty(16, dtype=np.uint64)
-        square1: Square1 = Square1(sq1)
-        turns: list[tuple[int, int]] = square1.get_unique_turns_sq_sq()
-        for i in range(len(turns)):
-            square1.turn_layers(turns[i])
-            square1.turn_slice()
-            sq1s[i] = square1.get_int()
-            square1 = Square1(sq1)
-        return sq1s
 
     def _get_filename(self) -> str:
         if self.state_type == PruningTable.CS:
@@ -167,19 +157,19 @@ class PruningTable:
             return "pruning_table_none.bin"
 
     def _write(self, index: int, value: int) -> bool:
-        table_value: int = self.table[index // 2]
-        if index % 2 == 0:
-            left: int = table_value // 16
+        table_value: int = self.table[index >> 1]
+        if not index & 1:
+            left: int = table_value >> 4
             if left == 15:
                 right: int = table_value % 16
-                self.table[index // 2] = value * 16 + right
+                self.table[index >> 1] = (value << 4) + right
                 self._increase_fill()
                 return True
         else:
             right: int = table_value % 16
             if right == 15:
-                left: int = table_value // 16
-                self.table[index // 2] = left * 16 + value
+                left: int = table_value >> 4
+                self.table[index >> 1] = (left << 4) + value
                 self._increase_fill()
                 return True
         return False
@@ -192,3 +182,22 @@ class PruningTable:
             else:
                 print(f"{self.step * self.step_rel:.1%}", "filled")
             self.step += 1
+
+# generates states for a square 1
+def _gs_sqsq(sq1s: np.ndarray) -> list[StateSqSq]:
+    states: list[StateSqSq] = []
+    for sq1 in sq1s:
+        states.append(StateSqSq(Square1(sq1)))
+    return states
+
+# gets next cubes for square square
+def _gnc_sqsq(sq1: int) -> np.ndarray:
+    sq1s: np.ndarray = np.empty(16, dtype=np.uint64)
+    square1: Square1 = Square1(sq1)
+    turns: list[tuple[int, int]] = square1.get_unique_turns_sq_sq()
+    for i in range(len(turns)):
+        square1.turn_layers(turns[i])
+        square1.turn_slice()
+        sq1s[i] = square1.get_int()
+        square1 = Square1(sq1)
+    return sq1s
