@@ -81,12 +81,18 @@ class SolverAstar:
         return human_readables
 
     def _get_cs_solution_state(self, sq1: int) -> (AstarCSState | None):
+        cs_slices: int = self._get_slices_cs(Square1(sq1))
+        max_slice_depth = 7
+        if cs_slices < 3:
+            max_slice_depth = 6
+        if cs_slices > 6:
+            max_slice_depth = 8
         depth: int = 0
         # inits solution and f to None
-        solution: (AstarCSState | None) = AstarCSState(StateCS.max_slices + StateSqSq.max_slices + 1, 0, (0, 0), 0)
+        solution: (AstarCSState | None) = AstarCSState(cs_slices + StateSqSq.max_slices + 1, 0, (0, 0), 0)
         # inits open list
         opened: list[AstarCSState] = []
-        heapq.heappush(opened, AstarCSState(0, 0, (0, 0), sq1))
+        heapq.heappush(opened, AstarCSState(cs_slices, 0, (0, 0), sq1))
         while opened:
             # gets lowest f in open
             state = heapq.heappop(opened)
@@ -107,23 +113,25 @@ class SolverAstar:
                     # calculates g and h of entire solution
                     g: int = state.g + 1
                     h: int = self._get_slices_sqsq(copy.get_copy())
-                    if g + h < solution.f:
+                    f: int = g + h
+                    if f < solution.f:
                         # sets new solution if f is better
-                        solution = AstarCSState(g + h, g, turn, copy.get_int(), state)
-                        print("Found solution with", solution.f, "slices")
+                        solution = AstarCSState(f, g, turn, copy.get_int(), state)
+                        print("Found solution with", f, "slices")
                         print("Cube Shape:", g, "slices")
                         print("Square Square:", h, "slices")
-                    if g >= solution.f or g >= 8:
-                        # returns if solution can't be improved
+                    if g >= solution.f or g > max_slice_depth:
+                        # returns if solution can't be improved or max slice depth has been searched
                         return solution
-                    else:
-                        if g > depth:
-                            depth = g
-                            print("-- Searching", g, "slices deep")
+                    elif g > depth:
+                        depth = g
+                        print("-- Searching", g, "slices deep")
                 else:
                     # appends state to open
                     g: int = state.g + 1
-                    heapq.heappush(opened, AstarCSState(g + slices, g, turn, copy.get_int(), state))
+                    f: int = g + slices
+                    if f <= max_slice_depth:
+                        heapq.heappush(opened, AstarCSState(f, g, turn, copy.get_int(), state))
         return solution
 
     def _get_slices_cs(self, square1: Square1) -> int:
