@@ -117,15 +117,13 @@ class SolverAstar:
                     if f < solution.f:
                         # sets new solution if f is better
                         solution = AstarCSState(f, g, turn, copy.get_int(), state)
-                        print("Found solution with", f, "slices")
-                        print("Cube Shape:", g, "slices")
-                        print("Square Square:", h, "slices")
+                        print("-- Found solution with", f, "slices (", g, "+", h, ")")
                     if g >= solution.f or g > max_slice_depth:
                         # returns if solution can't be improved or max slice depth has been searched
                         return solution
                     elif g > depth:
                         depth = g
-                        print("-- Searching", g, "slices deep")
+                        print("Searching", g, "slices deep")
                 else:
                     # appends state to open
                     g: int = state.g + 1
