@@ -163,6 +163,7 @@ class StateAll:
                 self.up_case: int = min(up_shape)
                 self.down_case: int = -2
                 self.up_re: int = max(up_shape)
+                self.down_re: int = 0
 
                 # sets cs case
                 self.cs = 60 + self.up_case
@@ -198,6 +199,9 @@ class StateAll:
 
         # calculates permutations
         self.square1.cycle_colors((black_offset, white_offset))
+        self.cp_black = 0
+        self.cp_white = 0
+        self.ep = 0
         blacks: list[int] = []
         whites: list[int] = []
         edges: list[int] = []

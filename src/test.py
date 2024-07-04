@@ -1,5 +1,5 @@
 from square1 import Square1
-from state_sq_sq import StateSqSq
+from state.state_sq_sq import StateSqSq
 from pruning_table import PruningTable
 
 square1: Square1 = Square1()

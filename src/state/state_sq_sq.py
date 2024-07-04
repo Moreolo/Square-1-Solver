@@ -1,5 +1,5 @@
 from square1 import Square1
-from symmetry import Symmetry
+from state.symmetry import Symmetry
 
 co_0: list[Symmetry] = []
 for up_rot in range(4):

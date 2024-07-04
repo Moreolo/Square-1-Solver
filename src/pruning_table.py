@@ -5,9 +5,9 @@ from multiprocessing import get_context
 import numpy as np
 
 from square1 import Square1
-from state_sq_sq import StateSqSq
-from state_cs import StateCS
-from state_all import StateAll
+from state.state_sq_sq import StateSqSq
+from state.state_cs import StateCS
+from state.state_all import StateAll
 
 class PruningTable:
     CS: int = 0
@@ -75,7 +75,7 @@ class PruningTable:
         elif self.state_type == PruningTable.ALL:
             self.step_rel: float = .0001
         self.step_abs: int = int(self.step_rel * self.size)
-        self.step: float = 1
+        self.step: int = 1
         if self.max_slices == 0:
             return
         print("Generating Pruning Table")
@@ -162,7 +162,45 @@ class PruningTable:
         print("Maximum slice depth", self.slice_depth)
 
     def _gpt_all(self) -> None:
-        pass
+        print("Complete Cube")
+        print("Maximum Slice Depth:", self.max_slices)
+        print("Table Size:", self.size)
+        self.slice_depth: int = 0
+        opened: list[np.ndarray] = [np.array([Square1().get_int()], dtype=np.uint64)]
+
+        while opened:
+            print("Check and write states for slice depth", self.slice_depth)
+            closed: list[int] = []
+            with get_context("spawn").Pool(6) as pool:
+                for states in pool.imap_unordered(_gs_all, opened, chunksize=10):
+                    for state in states:
+                        if self._write(state.get_index(), self.slice_depth):
+                            for index in state.get_symmetric_indecies():
+                                self._write(index, self.slice_depth)
+                            if self.slice_depth < self.max_slices:
+                                closed.append(state.square1.get_int())
+                    if self.filled == self.size:
+                        pool.close()
+                        break
+
+            opened = []
+            if closed and (self.filled < self.size):
+                self.slice_depth += 1
+                print("Generate states for slice depth", self.slice_depth)
+                closed_arr: np.ndarray = np.array(closed, dtype=np.uint64)
+                closed = []
+
+                with get_context("spawn").Pool(6) as pool:
+                    index: int = 0
+                    step = 0.01
+                    pr = step
+                    for result in pool.imap_unordered(_gnc_all, closed_arr, chunksize=200):
+                        opened.append(result)
+                        index += 1
+                        while pr <= float(index + 1) / len(closed_arr):
+                            print(f"{pr:.0%}", "of states generated")
+                            pr += step
+        print("Maximum slice depth", self.slice_depth)
 
     def _get_filename(self) -> str:
         if self.state_type == PruningTable.CS:
@@ -203,7 +241,7 @@ class PruningTable:
                 print(f"{self.step * self.step_rel:.2%}", "filled")
             self.step += 1
 
-# generates states for a square 1
+# generates square square states for cubes
 def _gs_sqsq(sq1s: np.ndarray) -> list[StateSqSq]:
     states: list[StateSqSq] = []
     for sq1 in sq1s:
@@ -215,6 +253,25 @@ def _gnc_sqsq(sq1: int) -> np.ndarray:
     sq1s: np.ndarray = np.empty(16, dtype=np.uint64)
     square1: Square1 = Square1(sq1)
     turns: list[tuple[int, int]] = square1.get_unique_turns_sq_sq()
+    for i in range(len(turns)):
+        square1.turn_layers(turns[i])
+        square1.turn_slice()
+        sq1s[i] = square1.get_int()
+        square1 = Square1(sq1)
+    return sq1s
+
+# generates all states for cubes
+def _gs_all(sq1s: np.ndarray) -> list[StateAll]:
+    states: list[StateAll] = []
+    for sq1 in sq1s:
+        states.append(StateAll(Square1(sq1)))
+    return states
+
+# gets next cubes for all
+def _gnc_all(sq1: int) -> np.ndarray:
+    square1: Square1 = Square1(sq1)
+    turns: list[tuple[int, int]] = square1.get_unique_turns()
+    sq1s: np.ndarray = np.empty(len(turns), dtype=np.uint64)
     for i in range(len(turns)):
         square1.turn_layers(turns[i])
         square1.turn_slice()
