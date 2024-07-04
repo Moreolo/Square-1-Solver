@@ -7,12 +7,14 @@ import numpy as np
 from square1 import Square1
 from state_sq_sq import StateSqSq
 from state_cs import StateCS
+from state_all import StateAll
 
 class PruningTable:
     CS: int = 0
     SQSQ: int = 1
+    ALL: int = 2
 
-    def __init__(self, state_type: int = CS, force_generation: bool = False) -> None:
+    def __init__(self, state_type: int = CS, block_generation: bool = False, force_generation: bool = False) -> None:
         self.state_type = state_type
         if state_type == PruningTable.CS:
             self.size = StateCS.size
@@ -20,6 +22,9 @@ class PruningTable:
         elif state_type == PruningTable.SQSQ:
             self.size = StateSqSq.size
             self.max_slices = StateSqSq.max_slices
+        elif state_type == PruningTable.ALL:
+            self.size = StateAll.size
+            self.max_slices = StateAll.max_slices
         else:
             self.size = 0
             self.max_slices = 0
@@ -36,10 +41,11 @@ class PruningTable:
                 self.load_table()
             except FileNotFoundError:
                 print(self._get_filename(), "not found")
-                self.generate_pruning_table()
-                print("Saving Table to file", self._get_filename())
-                self.save_table()
-                print("Table saved")
+                if not block_generation:
+                    self.generate_pruning_table()
+                    print("Saving Table to file", self._get_filename())
+                    self.save_table()
+                    print("Table saved")
             else:
                 print("Table successfully loaded from file", self._get_filename())
 
@@ -62,7 +68,12 @@ class PruningTable:
 
     def generate_pruning_table(self) -> None:
         self.filled: int = 0
-        self.step_rel: float = .1 if self.state_type== PruningTable.CS else .001
+        if self.state_type == PruningTable.CS:
+            self.step_rel: float = .1
+        elif self.state_type == PruningTable.SQSQ:
+            self.step_rel: float = .001
+        elif self.state_type == PruningTable.ALL:
+            self.step_rel: float = .0001
         self.step_abs: int = int(self.step_rel * self.size)
         self.step: float = 1
         if self.max_slices == 0:
@@ -73,6 +84,8 @@ class PruningTable:
             self._gpt_cs()
         elif self.state_type == PruningTable.SQSQ:
             self._gpt_sqsq()
+        elif self.state_type == PruningTable.ALL:
+            self._gpt_all()
         print("Generation took", f"{time() - start_time:.2f}", "seconds")
 
     def _gpt_cs(self) -> None:
@@ -148,12 +161,16 @@ class PruningTable:
                             pr += step
         print("Maximum slice depth", self.slice_depth)
 
+    def _gpt_all(self) -> None:
+        pass
 
     def _get_filename(self) -> str:
         if self.state_type == PruningTable.CS:
             return "pruning_table_cs.bin"
         elif self.state_type == PruningTable.SQSQ:
             return "pruning_table_sqsq.bin"
+        elif self.state_type == PruningTable.ALL:
+            return "pruning_table_all.bin"
         else:
             return "pruning_table_none.bin"
 
@@ -180,8 +197,10 @@ class PruningTable:
         while self.filled >= self.step * self.step_abs:
             if self.state_type == PruningTable.CS:
                 print(f"{self.step * self.step_rel:.0%}", "filled")
-            else:
+            elif self.state_type == PruningTable.SQSQ:
                 print(f"{self.step * self.step_rel:.1%}", "filled")
+            else:
+                print(f"{self.step * self.step_rel:.2%}", "filled")
             self.step += 1
 
 # generates states for a square 1
