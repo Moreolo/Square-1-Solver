@@ -1,6 +1,6 @@
 from time import time
 
-from multiprocessing import get_context
+from multiprocessing import get_context, cpu_count
 
 import numpy as np
 from cube_table import CubeTable
@@ -130,7 +130,7 @@ class PruningTable:
         while opened.size:
             print("Check and write states for slice depth", self.slice_depth)
             closed: list[int] = []
-            with get_context("spawn").Pool(6) as pool:
+            with get_context("spawn").Pool(cpu_count()) as pool:
                 for states in pool.imap_unordered(_gs_sqsq, opened, chunksize=10):
                     for state in states:
                         if self._write(state.get_index(), self.slice_depth):
@@ -150,7 +150,7 @@ class PruningTable:
                 closed = []
                 opened = np.empty((len(closed_arr), 16), dtype=np.uint64)
 
-                with get_context("spawn").Pool(6) as pool:
+                with get_context("spawn").Pool(cpu_count()) as pool:
                     index: int = 0
                     step = 0.1
                     pr = step
@@ -173,7 +173,7 @@ class PruningTable:
 
         while opened:
             print("Check and write states for slice depth", self.slice_depth)
-            with get_context("spawn").Pool(6) as pool:
+            with get_context("spawn").Pool(cpu_count()) as pool:
                 while opened:
                     for state in pool.imap_unordered(_gs_all, opened.read(), chunksize=100):
                         if self._write(state.get_index(), self.slice_depth):
@@ -188,7 +188,7 @@ class PruningTable:
             if closed and (self.filled < self.size):
                 self.slice_depth += 1
                 print("Generate states for slice depth", self.slice_depth)
-                with get_context("spawn").Pool(6) as pool:
+                with get_context("spawn").Pool(cpu_count()) as pool:
                     size: int = len(closed)
                     step = 0.01
                     pr = step
