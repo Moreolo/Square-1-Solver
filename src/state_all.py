@@ -191,7 +191,7 @@ class StateAll:
                     if black_offset == -1:
                         black_offset = piece // 2
         # calculates unique co case
-        n1: int = corner_gaps[1]
+        n1: int = 4 - corner_gaps[1]
         n2: int = n1 - corner_gaps[2]
         n3: int = n2 - corner_gaps[3]
         self.co = _sum_sum_to(n1) + _sum_to(n2) + n3
