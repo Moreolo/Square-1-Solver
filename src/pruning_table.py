@@ -133,20 +133,19 @@ class PruningTable:
         print("Maximum Slice Depth:", self.max_slices)
         print("Table Size:", self.size)
         slice_depth: int = 0
-        opened: CubeTable = CubeTable("opened", size=500)
+        opened: CubeTable = CubeTable("opened", size=25)
         opened.write(Square1().get_int())
-        closed: CubeTable = CubeTable("closed", size=500)
+        closed: CubeTable = CubeTable("closed", size=2)
 
-        while opened:
-            print("Check and write states for slice depth", slice_depth)
-            # inits process pool
-            idx_queue: Queue = Queue()
-            for i in range(n_processes):
-                idx_queue.put(i)
-            job = partial(_fill_table_sqsq, slice_depth)
-            with get_context("fork").Pool(n_processes, initializer=_init, initargs=(idx_queue, self.shared_locks, self.shared_table)) as pool:
+        idx_queue: Queue = Queue()
+        for i in range(n_processes):
+            idx_queue.put(i)
+        with get_context("fork").Pool(n_processes, initializer=_init, initargs=(idx_queue, self.shared_locks, self.shared_table)) as pool:
+            while opened:
+                print("Check", len(opened), "states for slice depth", slice_depth)
+                job = partial(_fill_table_sqsq, slice_depth)
                 while opened:
-                    for sq1 in pool.imap_unordered(job, opened.read(), chunksize=100):
+                    for sq1 in pool.imap_unordered(job, opened.read(), chunksize=1000):
                         if sq1 is not None:
                             self._increase_fill(sq1[1])
                             if slice_depth < self.max_slices:
@@ -154,12 +153,10 @@ class PruningTable:
                     if self.filled == self.size:
                         break
 
-            opened.clear()
-            if closed and (self.filled < self.size):
-                slice_depth += 1
-                print("Generate states for slice depth", slice_depth)
-
-                with get_context("spawn").Pool(n_processes) as pool:
+                opened.clear()
+                if closed and (self.filled < self.size):
+                    slice_depth += 1
+                    print("Generate states from", len(closed), "states for slice depth", slice_depth)
                     step_rel: float = .1
                     step_abs: int = int(step_rel * len(closed))
                     step: int = 1
@@ -179,28 +176,30 @@ class PruningTable:
         print("Maximum Slice Depth:", self.max_slices)
         print("Table Size:", self.size)
         slice_depth: int = 0
-        opened: CubeTable = CubeTable("opened")
+        opened: CubeTable = CubeTable("opened", 8000)
         opened.write(Square1().get_int())
-        closed: CubeTable = CubeTable("closed")
+        closed: CubeTable = CubeTable("closed", 500)
 
-        while opened:
-            print("Check and write states for slice depth", slice_depth)
-            with get_context("spawn").Pool(n_processes) as pool:
+        idx_queue: Queue = Queue()
+        for i in range(n_processes):
+            idx_queue.put(i)
+        with get_context("fork").Pool(n_processes, initializer=_init, initargs=(idx_queue, self.shared_locks, self.shared_table)) as pool:
+            while opened:
+                print("Check", len(opened), "states for slice depth", slice_depth)
+                job = partial(_fill_table_all, slice_depth)
                 while opened:
-                    for state in pool.imap_unordered(_generate_state_all, opened.read(), chunksize=400):
-                        if self._write(state.get_index(), slice_depth):
-                            for index in state.get_symmetric_indecies():
-                                self._write(index, slice_depth)
+                    for sq1 in pool.imap_unordered(job, opened.read(), chunksize=1000):
+                        if sq1 is not None:
+                            self._increase_fill(sq1[1])
                             if slice_depth < self.max_slices:
-                                closed.write(state.square1.get_int())
+                                closed.write(sq1[0])
                     if self.filled == self.size:
                         break
 
-            opened.clear()
-            if closed and (self.filled < self.size):
-                slice_depth += 1
-                print("Generate states for slice depth", slice_depth)
-                with get_context("spawn").Pool(n_processes) as pool:
+                opened.clear()
+                if closed and (self.filled < self.size):
+                    slice_depth += 1
+                    print("Generate states from", len(closed), "states for slice depth", slice_depth)
                     step_rel: float = .01
                     step_abs: int = int(step_rel * len(closed))
                     step: int = 1
@@ -253,10 +252,6 @@ class PruningTable:
             else:
                 print(f"{self.step * self.step_rel:.2%}", "filled")
             self.step += 1
-
-# generates square square states for cubes
-def _generate_state_sqsq(sq1: int) -> StateSqSq:
-    return StateSqSq(Square1(sq1))
 
 # gets next cubes for square square
 def _generate_next_cubes_sqsq(sq1: int) -> np.ndarray:

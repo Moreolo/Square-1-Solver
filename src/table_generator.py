@@ -1,4 +1,4 @@
 from pruning_table import PruningTable
 
 if __name__ == '__main__':
-    table: PruningTable = PruningTable(PruningTable.SQSQ, force_generation=True)
+    table: PruningTable = PruningTable(PruningTable.ALL, force_generation=True)
