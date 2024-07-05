@@ -207,7 +207,7 @@ class PruningTable:
                     for sq1s in pool.imap_unordered(_generate_next_cubes_all, closed.read(), chunksize=200):
                         for sq1 in sq1s:
                             opened.write(sq1)
-                        if step_abs != 0:
+                        if step_abs > 5000:
                             counter += 1
                             while counter >= step * step_abs:
                                 print(f"{step * step_rel:.0%}", "of states generated")
@@ -264,10 +264,6 @@ def _generate_next_cubes_sqsq(sq1: int) -> np.ndarray:
         sq1s[i] = square1.get_int()
         square1 = Square1(sq1)
     return sq1s
-
-# generate state for cube
-def _generate_state_all(sq1: int) -> StateAll:
-    return StateAll(Square1(sq1))
 
 # gets next cubes for all
 def _generate_next_cubes_all(sq1: int) -> np.ndarray:
