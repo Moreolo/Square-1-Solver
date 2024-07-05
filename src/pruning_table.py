@@ -205,7 +205,7 @@ class PruningTable:
                 while opened:
                     for sq1 in pool.imap_unordered(job, opened.read(), chunksize=4000):
                         if sq1 is not None:
-                            self._increase_fill(sq1[1])
+                            self._increase_fill(sq1[1], slice_depth)
                             if slice_depth < self.max_slices:
                                 closed.write(sq1[0])
                     if self.filled == self.size:
@@ -259,15 +259,18 @@ class PruningTable:
                 return True
         return False
 
-    def _increase_fill(self, increase: int = 1) -> None:
+    def _increase_fill(self, increase: int = 1, slice_depth: (int | None) = None) -> None:
+        slices: str = ""
+        if slice_depth is not None:
+            slices = "/" + str(slice_depth)
         self.filled += increase
         while self.filled >= self.step * self.step_abs:
             if self.state_type == PruningTable.CS:
-                print(f"{self.step * self.step_rel:.0%}", "filled")
+                print(f"{self.step * self.step_rel:.0%}", "filled", slices)
             elif self.state_type == PruningTable.SQSQ:
-                print(f"{self.step * self.step_rel:.1%}", "filled")
+                print(f"{self.step * self.step_rel:.1%}", "filled", slices)
             else:
-                print(f"{self.step * self.step_rel:.2%}", "filled")
+                print(f"{self.step * self.step_rel:.2%}", "filled", slices)
             self.step += 1
 
 # gets next cubes for square square
