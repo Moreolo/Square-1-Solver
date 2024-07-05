@@ -42,8 +42,8 @@ class CubeTable:
 
     def _read_file(self) -> bool:
         if self.tab > 0:
-            print("Reading file", self._get_tab_name())
             self.tab -= 1
+            print("Reading file", self._get_tab_name())
             with open(self._get_tab_name(), "rb") as file:
                 arr: bytes = file.read()
             self.table = np.frombuffer(arr, dtype=np.uint64)
