@@ -1,14 +1,18 @@
 from time import time
+from functools import partial
 
-from multiprocessing import get_context, cpu_count
+from multiprocessing import get_context, cpu_count, Array, RawArray, Queue
 
 import numpy as np
 from cube_table import CubeTable
+import shared_cube_table as sct
 
 from square1 import Square1
 from state.state_sq_sq import StateSqSq
 from state.state_cs import StateCS
 from state.state_all import StateAll
+
+n_processes = cpu_count()
 
 class PruningTable:
     CS: int = 0
@@ -30,7 +34,12 @@ class PruningTable:
             self.size = 0
             self.max_slices = 0
 
-        self.table: np.ndarray = np.full((self.size + 1) // 2, 255, dtype=np.uint8)
+        self.table: np.ndarray
+        if state_type == PruningTable.CS:
+            self.table = np.full((self.size + 1) // 2, 255, dtype=np.uint8)
+        else:
+            self.shared_table, self.table = create_shared_table((self.size + 1) // 2)
+            self.shared_locks = create_shared_locks()
 
         if force_generation:
             self.generate_pruning_table()
@@ -93,19 +102,19 @@ class PruningTable:
         print("Cube Shape")
         print("Maximum Slice Depth:", self.max_slices)
         print("Table Size:", self.size)
-        self.slice_depth: int = 0
+        slice_depth: int = 0
         opened: list[int] = [Square1().get_int()]
         while opened:
-            print("Check and write states for slice depth", self.slice_depth)
+            print("Check and write states for slice depth", slice_depth)
             closed: list[int] = []
             while opened:
                 sq1: int = opened.pop()
-                if self._write(StateCS(Square1(sq1)).get_index(), self.slice_depth) and self.slice_depth < self.max_slices:
+                if self._write(StateCS(Square1(sq1)).get_index(), slice_depth) and slice_depth < self.max_slices:
                     closed.append(sq1)
 
             if closed and (self.filled < self.size):
-                self.slice_depth += 1
-                print("Generate states for slice depth", self.slice_depth)
+                slice_depth += 1
+                print("Generate states for slice depth", slice_depth)
                 while closed:
                     sq1: int = closed.pop()
                     for mirror in range(2):
@@ -118,87 +127,90 @@ class PruningTable:
                             square1.turn_layers(turn)
                             square1.turn_slice()
                             opened.append(square1.get_int())
-        print("Maximum slice depth", self.slice_depth)
+        print("Maximum slice depth", slice_depth)
 
     def _gpt_sqsq(self) -> None:
         print("Square Square")
         print("Maximum Slice Depth:", self.max_slices)
         print("Table Size:", self.size)
-        self.slice_depth: int = 0
-        opened: np.ndarray = np.array([[Square1().get_int()]], dtype=np.uint64)
+        slice_depth: int = 0
+        opened = sct.create_shared_table(sct.opened_name)
+        sct.write_table(Square1().get_int(), *opened)
+        closed = sct.create_shared_table(sct.closed_name)
 
-        while opened.size:
-            print("Check and write states for slice depth", self.slice_depth)
-            closed: list[int] = []
-            with get_context("spawn").Pool(cpu_count()) as pool:
-                for states in pool.imap_unordered(_gs_sqsq, opened, chunksize=10):
-                    for state in states:
-                        if self._write(state.get_index(), self.slice_depth):
-                            for index in state.get_symmetric_indecies():
-                                self._write(index, self.slice_depth)
-                            if self.slice_depth < self.max_slices:
-                                closed.append(state.square1.get_int())
-                    if self.filled == self.size:
-                        pool.close()
-                        break
+        while sct.is_not_empty(*opened):
+            print("Check and write states for slice depth", slice_depth)
+            # inits processing pool
+            idx_queue = Queue()
+            for i in range(n_processes):
+                idx_queue.put(i)
+            job = partial(_fill_table_write_sqsq, slice_depth, self.max_slices)
+            with get_context("fork").Pool(n_processes, initializer=_init, initargs=(idx_queue, self.shared_locks, self.shared_table, closed)) as pool:
+                # distributes jobs to pool
+                while sct.is_not_empty(*opened):
+                    for fill in pool.imap_unordered(job, sct.read_table(*opened), chunksize=400):
+                        self._increase_fill(fill)
+                        if self.filled == self.size:
+                            pool.close()
+                            break
 
-            opened = np.empty(0)
-            if closed and (self.filled < self.size):
-                self.slice_depth += 1
-                print("Generate states for slice depth", self.slice_depth)
-                closed_arr: np.ndarray = np.array(closed, dtype=np.uint64)
-                closed = []
-                opened = np.empty((len(closed_arr), 16), dtype=np.uint64)
+            sct.clear_table(*opened)
+            if sct.is_not_empty(*closed) and (self.filled < self.size):
+                slice_depth += 1
+                print("Generate states for slice depth", slice_depth)
 
-                with get_context("spawn").Pool(cpu_count()) as pool:
-                    index: int = 0
-                    step = 0.1
-                    pr = step
-                    for result in pool.imap_unordered(_gnc_sqsq, closed_arr, chunksize=200):
-                        opened[index] = result
-                        index += 1
-                        while pr <= float(index) / len(closed_arr):
-                            print(f"{pr:.0%}", "of states generated")
-                            pr += step
-        print("Maximum slice depth", self.slice_depth)
+                with get_context("fork").Pool(n_processes, initializer=_init2, initargs=(opened,)) as pool:
+                    size: int = sct.get_size(*closed)
+                    step_rel: float = 0.1
+                    step_abs: int = int(step_rel * size)
+                    step: int = 1
+                    counter: int = 0
+                    while sct.is_not_empty(*closed):
+                        for _ in pool.imap_unordered(_generate_states_write_sqsq, sct.read_table(*closed), chunksize=200):
+                            counter += 1
+                            if step_abs != 0:
+                                while counter >= step * step_abs:
+                                    print(f"{step * step_rel:.0%}", "of states generated")
+                                    step += 1
+        print("Maximum slice depth", slice_depth)
 
     def _gpt_all(self) -> None:
         print("Complete Cube")
         print("Maximum Slice Depth:", self.max_slices)
         print("Table Size:", self.size)
-        self.slice_depth: int = 0
+        slice_depth: int = 0
         opened: CubeTable = CubeTable("opened")
         opened.write(Square1().get_int())
         closed: CubeTable = CubeTable("closed")
 
         while opened:
-            print("Check and write states for slice depth", self.slice_depth)
-            with get_context("spawn").Pool(cpu_count()) as pool:
+            print("Check and write states for slice depth", slice_depth)
+            with get_context("spawn").Pool(n_processes) as pool:
                 while opened:
                     for state in pool.imap_unordered(_gs_all, opened.read(), chunksize=100):
-                        if self._write(state.get_index(), self.slice_depth):
+                        if self._write(state.get_index(), slice_depth):
                             for index in state.get_symmetric_indecies():
-                                self._write(index, self.slice_depth)
-                            if self.slice_depth < self.max_slices:
+                                self._write(index, slice_depth)
+                            if slice_depth < self.max_slices:
                                 closed.write(state.square1.get_int())
                     if self.filled == self.size:
                         break
 
             opened.clear()
             if closed and (self.filled < self.size):
-                self.slice_depth += 1
-                print("Generate states for slice depth", self.slice_depth)
-                with get_context("spawn").Pool(cpu_count()) as pool:
+                slice_depth += 1
+                print("Generate states for slice depth", slice_depth)
+                with get_context("spawn").Pool(n_processes) as pool:
                     size: int = len(closed)
                     step = 0.01
                     pr = step
                     for results in pool.imap_unordered(_gnc_all, closed.read(), chunksize=100):
                         for sq1 in results:
                             opened.write(sq1)
-                            while 1 - (len(closed) - 1.) / size >= pr:
-                                print(f"{pr:.0%}", "of states generated")
-                                pr += step
-        print("Maximum slice depth", self.slice_depth)
+                        while 1 - (len(closed) - 1.) / size >= pr:
+                            print(f"{pr:.0%}", "of states generated")
+                            pr += step
+        print("Maximum slice depth", slice_depth)
 
     def _get_filename(self) -> str:
         if self.state_type == PruningTable.CS:
@@ -228,8 +240,8 @@ class PruningTable:
                 return True
         return False
 
-    def _increase_fill(self) -> None:
-        self.filled += 1
+    def _increase_fill(self, increase: int = 1) -> None:
+        self.filled += increase
         while self.filled >= self.step * self.step_abs:
             if self.state_type == PruningTable.CS:
                 print(f"{self.step * self.step_rel:.0%}", "filled")
@@ -273,3 +285,109 @@ def _gnc_all(sq1: int) -> np.ndarray:
         sq1s[i] = square1.get_int()
         square1 = Square1(sq1)
     return sq1s
+
+def _init(idx_queue: Queue, shared_locks_, shared_table_, shared_closed_) -> None:
+    global idx
+    global shared_locks
+    global shared_table
+    global shared_closed
+    idx = idx_queue.get()
+    shared_locks = shared_locks_
+    shared_table = shared_table_
+    shared_closed = shared_closed_
+
+def _init2(shared_opened_) -> None:
+    global shared_opened
+    shared_opened = shared_opened_
+
+def shared_to_numpy(shared_arr) -> np.ndarray:
+    try:
+        return np.frombuffer(shared_arr.get_obj(), dtype=np.int64)
+    except:
+        return np.frombuffer(shared_arr, dtype=np.uint8)
+
+def create_shared_table(size: int):
+    cdtype = np.ctypeslib.as_ctypes_type(np.uint8)
+    shared_table = RawArray(cdtype, size)
+    table = shared_to_numpy(shared_table)
+    table[:] = np.full(size, 255, dtype=np.uint8)
+    return shared_table, table
+
+def create_shared_locks():
+    cdtype = np.ctypeslib.as_ctypes_type(np.int64)
+    shared_locks = Array(cdtype, n_processes)
+    locks = shared_to_numpy(shared_locks)
+    locks[:] = np.full(n_processes, -1, np.int64)
+    return shared_locks
+
+# returns cube and number of successful writes if state is new in slice depth
+def _fill_table_write_sqsq(slice_depth: int, max_slices: int, sq1: int) -> int:
+    fill_increase: int = 0
+    state: StateSqSq = StateSqSq(Square1(sq1))
+    if _shared_write(state.get_index(), slice_depth):
+        fill_increase += 1
+        for index in state.get_symmetric_indecies():
+            if _shared_write(index, slice_depth):
+                fill_increase += 1
+        if slice_depth < max_slices:
+            sct.write_table(state.square1.get_int(), *shared_closed)
+    return fill_increase
+
+def _generate_states_write_sqsq(sq1: int) -> None:
+    square1: Square1 = Square1(sq1)
+    turns: list[tuple[int, int]] = square1.get_unique_turns_sq_sq()
+    for turn in turns:
+        square1.turn_layers(turn)
+        square1.turn_slice()
+        sct.write_table(square1.get_int(), *shared_opened)
+        square1 = Square1(sq1)
+
+# returns cube and number of successful writes if state is new in slice depth
+def _fill_table_sqsq(slice_depth: int, sq1: int) -> (tuple[int, int] | None):
+    state: StateSqSq = StateSqSq(Square1(sq1))
+    if _shared_write(state.get_index(), slice_depth):
+        fill_increase: int = 1
+        for index in state.get_symmetric_indecies():
+            if _shared_write(index, slice_depth):
+                fill_increase += 1
+        return state.square1.get_int(), fill_increase
+
+# returns cube and number of successful writes if state is new in slice depth
+def _fill_table_all(slice_depth: int, sq1: int) -> (tuple[int, int] | None):
+    state: StateAll = StateAll(Square1(sq1))
+    if _shared_write(state.get_index(), slice_depth):
+        fill_increase: int = 1
+        for index in state.get_symmetric_indecies():
+            if _shared_write(index, slice_depth):
+                fill_increase += 1
+        return state.square1.get_int(), fill_increase
+
+def _shared_write(index: int, slice_depth: int) -> bool:
+    table_index: int = index >> 1
+    # accquires lock for table entry
+    locks = shared_to_numpy(shared_locks)
+    table = shared_to_numpy(shared_table)
+    with shared_locks.get_lock():
+        while table_index in locks:
+            pass
+        locks[idx] = table_index
+    # checks and writes table entry
+    new_entry: bool = False
+    table_value: int = table[table_index]
+    if not index & 1:
+        left: int = table_value >> 4
+        if left == 15:
+            # writes to table if empty
+            right: int = table_value % 16
+            table[table_index] = (slice_depth << 4) + right
+            new_entry = True
+    else:
+        right: int = table_value % 16
+        if right == 15:
+            # writes to table if empty
+            left: int = table_value >> 4
+            table[table_index] = (left << 4) + slice_depth
+            new_entry = True
+    # releases lock
+    locks[idx] = -1
+    return new_entry

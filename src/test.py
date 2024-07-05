@@ -1,31 +1,63 @@
-from square1 import Square1
-from state.state_sq_sq import StateSqSq
-from pruning_table import PruningTable
+from time import time
 
-square1: Square1 = Square1()
-table: PruningTable = PruningTable(PruningTable.SQSQ)
-for turn1 in square1.get_unique_turns_sq_sq():
-    copy1: Square1 = square1.get_copy()
-    copy1.turn_layers(turn1)
-    copy1.turn_slice()
-    for turn2 in copy1.get_unique_turns_sq_sq():
-        copy2: Square1 = copy1.get_copy()
-        copy2.turn_layers(turn2)
-        copy2.turn_slice()
-        if table.read(StateSqSq(copy2.get_copy()).get_index()) > 1:
-            for turn3 in copy2.get_unique_turns_sq_sq():
-                copy3: Square1 = copy2.get_copy()
-                copy3.turn_layers(turn3)
-                copy3.turn_slice()
-                # if table.read(StateSqSq(copy3.get_copy()).get_index()) > 2:
-                #     for turn4 in copy3.get_unique_turns_sq_sq():
-                #         copy4: Square1 = copy3.get_copy()
-                #         copy4.turn_layers(turn4)
-                #         copy4.turn_slice()
-                if not (0 < table.read(StateSqSq(copy3.get_copy()).get_index()) < 4):
-                    state = StateSqSq(copy3.get_copy())
-                    print(table.read(state.get_index()))
-                    print(state.get_index())
-                    print(state.co, state.cp_black, state.cp_white, state.ep)
-                    print(turn1, turn2, turn3)
-                    print(state.square1.pieces)
+import numpy as np
+import multiprocessing as mp
+
+n_processes = mp.cpu_count()
+
+def _init(idx_queue, shared_locks_, shared_table_):
+    global idx
+    global shared_locks
+    global shared_table
+    idx = idx_queue.get()
+    shared_locks = shared_locks_
+    shared_table = shared_table_
+
+def shared_to_numpy(shared_arr) -> np.ndarray:
+    try:
+        return np.frombuffer(shared_arr.get_obj(), dtype=np.int64)
+    except:
+        return np.frombuffer(shared_arr, dtype=np.int64)
+
+def create_shared_table(size: int):
+    cdtype = np.ctypeslib.as_ctypes_type(np.int64)
+    shared_table = mp.RawArray(cdtype, size)
+    table = shared_to_numpy(shared_table)
+    table[:] = np.full(size, 255, dtype=np.int64)
+    return shared_table, table
+
+def create_shared_locks():
+    cdtype = np.ctypeslib.as_ctypes_type(np.int64)
+    shared_locks = mp.Array(cdtype, n_processes)
+    locks = shared_to_numpy(shared_locks)
+    locks[:] = np.full(n_processes, -1)
+    return shared_locks
+
+
+def square(x: int):
+    locks = shared_to_numpy(shared_locks)
+    with shared_locks.get_lock():
+        while (x >> 2) in locks:
+            print("--------------------------")
+        locks[idx] = (x >> 2)
+    result: int = x * x
+    print(idx, "calculating", x, "*", x, "=", result)
+    table = shared_to_numpy(shared_table)
+    table[x] = result
+    locks[idx] = -1
+    return result
+
+if __name__ == '__main__':
+    shared_table_, table = create_shared_table(10000)
+    shared_locks_ = create_shared_locks()
+    tasks = [_ for _ in range(10000)]
+    idx_queue = mp.Queue()
+    for i in range(n_processes):
+        idx_queue.put(i)
+    start = time()
+    with mp.get_context("fork").Pool(n_processes, initializer=_init, initargs=(idx_queue, shared_locks_, shared_table_)) as pool:
+        for i in pool.imap_unordered(square, tasks):
+            pass
+    print(time() - start)
+    if 255 in table:
+        print("255 in table")
