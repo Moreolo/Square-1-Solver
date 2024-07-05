@@ -11,7 +11,7 @@ from state.state_sq_sq import StateSqSq
 from state.state_cs import StateCS
 from state.state_all import StateAll
 
-n_processes = cpu_count()
+n_processes = cpu_count() // 2
 
 class PruningTable:
     CS: int = 0
