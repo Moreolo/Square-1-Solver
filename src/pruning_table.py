@@ -59,14 +59,12 @@ class PruningTable:
                 print("Table successfully loaded from file", self._get_filename())
 
     def save_table(self) -> None:
-        arr: bytes = self.table.tobytes()
         with open(self._get_filename(), "wb") as file:
-            file.write(arr)
+            np.save(file, self.table)
 
     def load_table(self) -> None:
         with open(self._get_filename(), "rb") as file:
-            arr: bytes = file.read((self.size + 1) // 2)
-        self.table = np.frombuffer(arr, dtype=np.uint8)
+            self.table = np.load(file)
 
     def read(self, index: int) -> int:
         if index % 2 == 0:
@@ -149,12 +147,12 @@ class PruningTable:
         while opened:
             print("Check", len(opened), "states for slice depth", slice_depth)
             job = partial(_fill_table_sqsq, slice_depth)
-            idx_queue: Queue = Queue()
-            for i in range(n_processes):
-                idx_queue.put(i)
-            start = time()
-            with get_context("fork").Pool(n_processes, initializer=_init, initargs=(idx_queue, self.shared_locks, self.shared_table)) as pool:
-                while opened:
+            while opened:
+                opened.prepare_read()
+                idx_queue: Queue = Queue()
+                for i in range(n_processes):
+                    idx_queue.put(i)
+                with get_context("fork").Pool(n_processes, initializer=_init, initargs=(idx_queue, self.shared_locks, self.shared_table)) as pool:
                     for sq1 in pool.imap_unordered(job, opened.read(), chunksize=4000):
                         if sq1 is not None:
                             self._increase_fill(sq1[1])
@@ -162,7 +160,6 @@ class PruningTable:
                                 closed.write(sq1[0])
                     if self.filled == self.size:
                         break
-            print("Checks took", time() - start, "seconds")
 
             opened.clear()
             if closed and (self.filled < self.size):
@@ -172,9 +169,9 @@ class PruningTable:
                 step_abs: int = int(step_rel * len(closed))
                 step: int = 1
                 counter: int = 0
-                start = time()
-                with get_context("fork").Pool(n_processes * 2) as pool:
-                    while closed:
+                while closed:
+                    closed.prepare_read()
+                    with get_context("spawn").Pool(n_processes * 2) as pool:
                         for sq1s in pool.imap_unordered(_generate_next_cubes_sqsq, closed.read(), chunksize=1000):
                             for sq1 in sq1s:
                                 opened.write(sq1)
@@ -183,7 +180,6 @@ class PruningTable:
                                 while counter >= step * step_abs:
                                     print(f"{step * step_rel:.0%}", "of states generated")
                                     step += 1
-                print("Gen took", time() - start, "seconds")
         print("Maximum slice depth", slice_depth)
 
     def _gpt_all(self) -> None:
@@ -198,11 +194,12 @@ class PruningTable:
         while opened:
             print("Check", len(opened), "states for slice depth", slice_depth)
             job = partial(_fill_table_all, slice_depth)
-            idx_queue: Queue = Queue()
-            for i in range(n_processes):
-                idx_queue.put(i)
-            with get_context("fork").Pool(n_processes, initializer=_init, initargs=(idx_queue, self.shared_locks, self.shared_table)) as pool:
-                while opened:
+            while opened:
+                opened.prepare_read()
+                idx_queue: Queue = Queue()
+                for i in range(n_processes):
+                    idx_queue.put(i)
+                with get_context("fork").Pool(n_processes, initializer=_init, initargs=(idx_queue, self.shared_locks, self.shared_table)) as pool:
                     for sq1 in pool.imap_unordered(job, opened.read(), chunksize=4000):
                         if sq1 is not None:
                             self._increase_fill(sq1[1], slice_depth)
@@ -219,8 +216,9 @@ class PruningTable:
                 step_abs: int = int(step_rel * len(closed))
                 step: int = 1
                 counter: int = 0
-                with get_context("fork").Pool(n_processes * 2) as pool:
-                    while closed:
+                while closed:
+                    closed.prepare_read()
+                    with get_context("spawn").Pool(n_processes * 2) as pool:
                         for sq1s in pool.imap_unordered(_generate_next_cubes_all, closed.read(), chunksize=1000):
                             for sq1 in sq1s:
                                 opened.write(sq1)

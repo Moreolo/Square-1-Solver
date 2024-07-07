@@ -17,14 +17,17 @@ class CubeTable:
     def __len__(self) -> int:
         return self.tab * self.size + self.index
 
+    def prepare_read(self) -> None:
+        if self.index == 0:
+            if not self._read_file():
+                raise LookupError
+
     def read(self) -> np.ndarray:
         if self.index != 0:
             index: int = self.index
             self.index = 0
             return self.table[:index]
         else:
-            if not self._read_file():
-                raise LookupError
             return self.table
 
     def write(self, value: int) -> None:
@@ -45,17 +48,15 @@ class CubeTable:
             self.tab -= 1
             print("Reading file", self._get_tab_name())
             with open(self._get_tab_name(), "rb") as file:
-                arr: bytes = file.read()
-            self.table = np.frombuffer(arr, dtype=np.uint64)
+                self.table = np.fromfile(file, dtype=np.uint64)
             os.remove(self._get_tab_name())
             return True
         return False
 
     def _write_file(self) -> None:
         print("Writing file", self._get_tab_name())
-        arr: bytes = self.table.tobytes()
         with open(self._get_tab_name(), "wb") as file:
-            file.write(arr)
+            self.table.tofile(file)
         self.tab += 1
 
     def _get_tab_name(self) -> str:
