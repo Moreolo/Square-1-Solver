@@ -123,7 +123,7 @@ class StateAll:
                     self.up_re: int = max(up_shape)
                 else:
                     self.up_re: int = 5
-                if down_case == 0:
+                if down_case == 0 and up_case != 8:
                     self.down_re: int = 1
                 elif down_case == 3:
                     self.down_re: int = 2

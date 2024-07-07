@@ -3,7 +3,7 @@ from state.state_all import StateAll
 from pruning_table import PruningTable
 
 square1: Square1 = Square1()
-table: PruningTable = PruningTable(PruningTable.SQSQ)
+table: PruningTable = PruningTable(PruningTable.ALL, block_generation=True)
 for turn1 in square1.get_unique_turns():
     copy1: Square1 = square1.get_copy()
     copy1.turn_layers(turn1)
