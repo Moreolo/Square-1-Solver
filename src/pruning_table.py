@@ -169,9 +169,9 @@ class PruningTable:
                 step_abs: int = int(step_rel * len(closed))
                 step: int = 1
                 counter: int = 0
-                while closed:
-                    closed.prepare_read()
-                    with get_context("spawn").Pool(n_processes * 2) as pool:
+                with get_context("spawn").Pool(n_processes * 2) as pool:
+                    while closed:
+                        closed.prepare_read()
                         for sq1s in pool.imap_unordered(_generate_next_cubes_sqsq, closed.read(), chunksize=1000):
                             for sq1 in sq1s:
                                 opened.write(sq1)
@@ -216,9 +216,9 @@ class PruningTable:
                 step_abs: int = int(step_rel * len(closed))
                 step: int = 1
                 counter: int = 0
-                while closed:
-                    closed.prepare_read()
-                    with get_context("spawn").Pool(n_processes * 2) as pool:
+                with get_context("spawn").Pool(n_processes * 2) as pool:
+                    while closed:
+                        closed.prepare_read()
                         for sq1s in pool.imap_unordered(_generate_next_cubes_all, closed.read(), chunksize=1000):
                             for sq1 in sq1s:
                                 opened.write(sq1)
