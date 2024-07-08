@@ -158,8 +158,8 @@ class PruningTable:
                             self._increase_fill(sq1[1])
                             if slice_depth < self.max_slices:
                                 closed.write(sq1[0])
-                    if self.filled == self.size:
-                        break
+                if self.filled == self.size:
+                    break
 
             opened.clear()
             if closed and (self.filled < self.size):
@@ -205,8 +205,8 @@ class PruningTable:
                             self._increase_fill(sq1[1], slice_depth)
                             if slice_depth < self.max_slices:
                                 closed.write(sq1[0])
-                    if self.filled == self.size:
-                        break
+                if self.filled == self.size:
+                    break
 
             opened.clear()
             if closed and (self.filled < self.size):
