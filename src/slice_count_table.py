@@ -13,20 +13,20 @@ from state.state_all import StateAll
 
 n_processes = cpu_count() // 2
 
-class PruningTable:
+class SliceCountTable:
     CS: int = 0
     SQSQ: int = 1
     ALL: int = 2
 
     def __init__(self, state_type: int = CS, block_generation: bool = False, force_generation: bool = False) -> None:
         self.state_type = state_type
-        if state_type == PruningTable.CS:
+        if state_type == SliceCountTable.CS:
             self.size = StateCS.size
             self.max_slices = StateCS.max_slices
-        elif state_type == PruningTable.SQSQ:
+        elif state_type == SliceCountTable.SQSQ:
             self.size = StateSqSq.size
             self.max_slices = StateSqSq.max_slices
-        elif state_type == PruningTable.ALL:
+        elif state_type == SliceCountTable.ALL:
             self.size = StateAll.size
             self.max_slices = StateAll.max_slices
         else:
@@ -34,7 +34,7 @@ class PruningTable:
             self.max_slices = 0
 
         self.table: np.ndarray
-        if state_type == PruningTable.CS:
+        if state_type == SliceCountTable.CS:
             self.table = np.full((self.size + 1) // 2, 255, dtype=np.uint8)
         else:
             self.shared_table, self.table = create_shared_table((self.size + 1) // 2)
@@ -75,11 +75,11 @@ class PruningTable:
 
     def generate_pruning_table(self) -> None:
         self.filled: int = 0
-        if self.state_type == PruningTable.CS:
+        if self.state_type == SliceCountTable.CS:
             self.step_rel: float = .1
-        elif self.state_type == PruningTable.SQSQ:
+        elif self.state_type == SliceCountTable.SQSQ:
             self.step_rel: float = .001
-        elif self.state_type == PruningTable.ALL:
+        elif self.state_type == SliceCountTable.ALL:
             self.step_rel: float = .0001
         self.step_abs: int = int(self.step_rel * self.size)
         self.step: int = 1
@@ -87,11 +87,11 @@ class PruningTable:
             return
         print("Generating Pruning Table")
         start_time = time()
-        if self.state_type == PruningTable.CS:
+        if self.state_type == SliceCountTable.CS:
             self._gpt_cs()
-        elif self.state_type == PruningTable.SQSQ:
+        elif self.state_type == SliceCountTable.SQSQ:
             self._gpt_sqsq()
-        elif self.state_type == PruningTable.ALL:
+        elif self.state_type == SliceCountTable.ALL:
             self._gpt_all()
         dur = time() - start_time
         if dur < 30:
@@ -187,7 +187,12 @@ class PruningTable:
         print("Maximum Slice Depth:", self.max_slices)
         print("Table Size:", self.size)
         slice_depth: int = 0
-        opened: CubeTable = CubeTable("opened", 8000)
+        # Numpy can't write into a table directly
+        # Instead a copy is created and the original table is assigned the copy
+        # This means temporarly twice the RAM will be used
+        # This could be avoided by overwriting the table in steps
+        # However currently the table size is halved to accomodate the additional RAM usage
+        opened: CubeTable = CubeTable("opened", 4000)
         opened.write(Square1().get_int())
         closed: CubeTable = CubeTable("closed", 500)
 
@@ -230,11 +235,11 @@ class PruningTable:
         print("Maximum slice depth", slice_depth)
 
     def _get_filename(self) -> str:
-        if self.state_type == PruningTable.CS:
+        if self.state_type == SliceCountTable.CS:
             return "pruning_table_cs.bin"
-        elif self.state_type == PruningTable.SQSQ:
+        elif self.state_type == SliceCountTable.SQSQ:
             return "pruning_table_sqsq.bin"
-        elif self.state_type == PruningTable.ALL:
+        elif self.state_type == SliceCountTable.ALL:
             return "pruning_table_all.bin"
         else:
             return "pruning_table_none.bin"
@@ -263,9 +268,9 @@ class PruningTable:
             slices = "/" + str(slice_depth)
         self.filled += increase
         while self.filled >= self.step * self.step_abs:
-            if self.state_type == PruningTable.CS:
+            if self.state_type == SliceCountTable.CS:
                 print(f"{self.step * self.step_rel:.0%}", "filled", slices)
-            elif self.state_type == PruningTable.SQSQ:
+            elif self.state_type == SliceCountTable.SQSQ:
                 print(f"{self.step * self.step_rel:.1%}", "filled", slices)
             else:
                 print(f"{self.step * self.step_rel:.2%}", "filled", slices)
@@ -345,9 +350,16 @@ def _fill_table_all(slice_depth: int, sq1: int) -> (tuple[int, int] | None):
 
 def _shared_write(index: int, slice_depth: int) -> bool:
     table_index: int = index >> 1
+    table = shared_to_numpy(shared_table)
+    # returns early if index is already filled
+    if not index & 1:
+        if table[table_index] >> 4 != 15:
+            return False
+    else:
+        if table[table_index] % 16 != 15:
+            return False
     # accquires lock for table entry
     locks = shared_to_numpy(shared_locks)
-    table = shared_to_numpy(shared_table)
     with shared_locks.get_lock():
         while table_index in locks:
             pass

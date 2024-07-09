@@ -1,4 +1,4 @@
-from pruning_table import PruningTable
+from slice_count_table import SliceCountTable
 
 if __name__ == '__main__':
-    table: PruningTable = PruningTable(PruningTable.ALL, force_generation=True)
+    table: SliceCountTable = SliceCountTable(SliceCountTable.ALL, force_generation=True)

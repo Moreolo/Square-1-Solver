@@ -1,6 +1,6 @@
 from square1 import Square1
 # from solver import SolverStandard as Solver
-from solver.solver_astar import SolverAstar as Solver
+from solver.solver_optimal import SolverOptimal as Solver
 
 solver: Solver = Solver()
 print("Scramble: (1,0)/ (3,0)/ (5,-4)/ (-2,-5)/ (-4,-1)/ (3,0)/ (-2,0)/ (0,-3)/ (0,-2)/ (3,0)/ (-1,0)/ (-3,-4)/ (-4,0)/ (0,-2)")
