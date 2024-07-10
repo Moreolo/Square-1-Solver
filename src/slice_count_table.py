@@ -41,7 +41,7 @@ class SliceCountTable:
             self.shared_locks = create_shared_locks()
 
         if force_generation:
-            self.generate_pruning_table()
+            self.generate_slice_count_table()
             print("Saving Table to file", self._get_filename())
             self.save_table()
             print("Table saved")
@@ -51,7 +51,7 @@ class SliceCountTable:
             except FileNotFoundError:
                 print(self._get_filename(), "not found")
                 if not block_generation:
-                    self.generate_pruning_table()
+                    self.generate_slice_count_table()
                     print("Saving Table to file", self._get_filename())
                     self.save_table()
                     print("Table saved")
@@ -59,12 +59,10 @@ class SliceCountTable:
                 print("Table successfully loaded from file", self._get_filename())
 
     def save_table(self) -> None:
-        with open(self._get_filename(), "wb") as file:
-            np.save(file, self.table)
+        np.save(self._get_filename(), self.table)
 
     def load_table(self) -> None:
-        with open(self._get_filename(), "rb") as file:
-            self.table = np.load(file)
+        self.table = np.load(self._get_filename())
 
     def read(self, index: int) -> int:
         if index % 2 == 0:
@@ -73,7 +71,7 @@ class SliceCountTable:
             return self.table[index // 2] % 16
 
 
-    def generate_pruning_table(self) -> None:
+    def generate_slice_count_table(self) -> None:
         self.filled: int = 0
         if self.state_type == SliceCountTable.CS:
             self.step_rel: float = .1
@@ -156,7 +154,7 @@ class SliceCountTable:
                     for sq1 in pool.imap_unordered(job, opened.read(), chunksize=4000):
                         if sq1 is not None:
                             self._increase_fill(sq1[1])
-                            if slice_depth < self.max_slices:
+                            if slice_depth < self.max_slices - 1:
                                 closed.write(sq1[0])
                 if self.filled == self.size:
                     break
@@ -180,7 +178,22 @@ class SliceCountTable:
                                 while counter >= step * step_abs:
                                     print(f"{step * step_rel:.0%}", "of states generated")
                                     step += 1
-        print("Maximum slice depth", slice_depth)
+        print("Set rest of Table to Slice Depth", self.max_slices)
+        for index in range((self.size + 1) // 2):
+            left: int = self.table[index] >> 4
+            right: int = self.table[index] % 16
+            changed: bool = False
+            if left == 15:
+                left = self.max_slices
+                changed = True
+                self._increase_fill()
+            if right == 15:
+                right = self.max_slices
+                changed = True
+                self._increase_fill()
+            if changed:
+                self.table[index] = (left << 4) + right
+        print("Maximum slice depth", slice_depth + 1)
 
     def _gpt_all(self) -> None:
         print("Complete Cube")
@@ -208,7 +221,7 @@ class SliceCountTable:
                     for sq1 in pool.imap_unordered(job, opened.read(), chunksize=4000):
                         if sq1 is not None:
                             self._increase_fill(sq1[1], slice_depth)
-                            if slice_depth < self.max_slices:
+                            if slice_depth < self.max_slices:# - 1:
                                 closed.write(sq1[0])
                 if self.filled == self.size:
                     break
@@ -232,17 +245,32 @@ class SliceCountTable:
                                 while counter >= step * step_abs:
                                     print(f"{step * step_rel:.0%}", "of states generated")
                                     step += 1
+        # print("Set rest of Table to Slice Depth", self.max_slices)
+        # for index in range((self.size + 1) // 2):
+        #     left: int = self.table[index] >> 4
+        #     right: int = self.table[index] % 16
+        #     changed: bool = False
+        #     if left == 15:
+        #         left = self.max_slices
+        #         changed = True
+        #         self._increase_fill()
+        #     if right == 15:
+        #         right = self.max_slices
+        #         changed = True
+        #         self._increase_fill()
+        #     if changed:
+        #         self.table[index] = (left << 4) + right
         print("Maximum slice depth", slice_depth)
 
     def _get_filename(self) -> str:
         if self.state_type == SliceCountTable.CS:
-            return "pruning_table_cs.bin"
+            return "slice_count_table_cs.npy"
         elif self.state_type == SliceCountTable.SQSQ:
-            return "pruning_table_sqsq.bin"
+            return "slice_count_table_sqsq.npy"
         elif self.state_type == SliceCountTable.ALL:
-            return "pruning_table_all.bin"
+            return "slice_count_table_all.npy"
         else:
-            return "pruning_table_none.bin"
+            return "slice_count_table_none.npy"
 
     def _write(self, index: int, value: int) -> bool:
         table_value: int = self.table[index >> 1]
