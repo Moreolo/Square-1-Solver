@@ -1,7 +1,7 @@
 from functools import partial
 from time import time
 
-from multiprocessing import get_context, cpu_count, Array, RawArray, Queue
+from multiprocessing import get_context, cpu_count, RawArray, Lock
 
 import numpy as np
 from cube_table import CubeTable
@@ -11,7 +11,7 @@ from state.state_sq_sq import StateSqSq
 from state.state_cs import StateCS
 from state.state_all import StateAll
 
-n_processes = cpu_count() // 2
+n_processes = cpu_count()
 
 class SliceCountTable:
     CS: int = 0
@@ -38,7 +38,7 @@ class SliceCountTable:
             self.table = np.full((self.size + 1) // 2, 255, dtype=np.uint8)
         else:
             self.shared_table, self.table = create_shared_table((self.size + 1) // 2)
-            self.shared_locks = create_shared_locks()
+            self.lock = Lock()
 
         if force_generation:
             self.generate_slice_count_table()
@@ -147,10 +147,7 @@ class SliceCountTable:
             job = partial(_fill_table_sqsq, slice_depth)
             while opened:
                 opened.prepare_read()
-                idx_queue: Queue = Queue()
-                for i in range(n_processes):
-                    idx_queue.put(i)
-                with get_context("fork").Pool(n_processes, initializer=_init, initargs=(idx_queue, self.shared_locks, self.shared_table)) as pool:
+                with get_context("fork").Pool(n_processes, initializer=_init, initargs=(self.shared_table, self.lock)) as pool:
                     for sq1 in pool.imap_unordered(job, opened.read(), chunksize=4000):
                         if sq1 is not None:
                             self._increase_fill(sq1[1])
@@ -167,7 +164,7 @@ class SliceCountTable:
                 step_abs: int = int(step_rel * len(closed))
                 step: int = 1
                 counter: int = 0
-                with get_context("spawn").Pool(n_processes * 2) as pool:
+                with get_context("fork").Pool(n_processes) as pool:
                     while closed:
                         closed.prepare_read()
                         for sq1s in pool.imap_unordered(_generate_next_cubes_sqsq, closed.read(), chunksize=1000):
@@ -214,10 +211,7 @@ class SliceCountTable:
             job = partial(_fill_table_all, slice_depth)
             while opened:
                 opened.prepare_read()
-                idx_queue: Queue = Queue()
-                for i in range(n_processes):
-                    idx_queue.put(i)
-                with get_context("fork").Pool(n_processes, initializer=_init, initargs=(idx_queue, self.shared_locks, self.shared_table)) as pool:
+                with get_context("fork").Pool(n_processes, initializer=_init, initargs=(self.shared_table, self.lock)) as pool:
                     for sq1 in pool.imap_unordered(job, opened.read(), chunksize=4000):
                         if sq1 is not None:
                             self._increase_fill(sq1[1], slice_depth)
@@ -234,7 +228,7 @@ class SliceCountTable:
                 step_abs: int = int(step_rel * len(closed))
                 step: int = 1
                 counter: int = 0
-                with get_context("spawn").Pool(n_processes * 2) as pool:
+                with get_context("spawn").Pool(n_processes) as pool:
                     while closed:
                         closed.prepare_read()
                         for sq1s in pool.imap_unordered(_generate_next_cubes_all, closed.read(), chunksize=1000):
@@ -328,13 +322,11 @@ def _generate_next_cubes_all(sq1: int) -> np.ndarray:
         square1 = Square1(sq1)
     return sq1s
 
-def _init(idx_queue: Queue, shared_locks_, shared_table_) -> None:
-    global idx
-    global shared_locks
+def _init(shared_table_, lock_) -> None:
     global shared_table
-    idx = idx_queue.get()
-    shared_locks = shared_locks_
+    global lock
     shared_table = shared_table_
+    lock = lock_
 
 def shared_to_numpy(shared_arr) -> np.ndarray:
     try:
@@ -348,13 +340,6 @@ def create_shared_table(size: int):
     table = shared_to_numpy(shared_table)
     table[:] = np.full(size, 255, dtype=np.uint8)
     return shared_table, table
-
-def create_shared_locks():
-    cdtype = np.ctypeslib.as_ctypes_type(np.int64)
-    shared_locks = Array(cdtype, n_processes)
-    locks = shared_to_numpy(shared_locks)
-    locks[:] = np.full(n_processes, -1, np.int64)
-    return shared_locks
 
 # returns cube and number of successful writes if state is new in slice depth
 def _fill_table_sqsq(slice_depth: int, sq1: int) -> (tuple[int, int] | None):
@@ -386,29 +371,23 @@ def _shared_write(index: int, slice_depth: int) -> bool:
     else:
         if table[table_index] % 16 != 15:
             return False
-    # accquires lock for table entry
-    locks = shared_to_numpy(shared_locks)
-    with shared_locks.get_lock():
-        while table_index in locks:
-            pass
-        locks[idx] = table_index
-    # checks and writes table entry
+
+    # writes with acquired lock
     new_entry: bool = False
-    table_value: int = table[table_index]
-    if not index & 1:
-        left: int = table_value >> 4
-        if left == 15:
-            # writes to table if empty
-            right: int = table_value % 16
-            table[table_index] = (slice_depth << 4) + right
-            new_entry = True
-    else:
-        right: int = table_value % 16
-        if right == 15:
-            # writes to table if empty
+    with lock:
+        table_value: int = table[table_index]
+        if not index & 1:
             left: int = table_value >> 4
-            table[table_index] = (left << 4) + slice_depth
-            new_entry = True
-    # releases lock
-    locks[idx] = -1
+            if left == 15:
+                # writes to table if empty
+                right: int = table_value % 16
+                table[table_index] = (slice_depth << 4) + right
+                new_entry = True
+        else:
+            right: int = table_value % 16
+            if right == 15:
+                # writes to table if empty
+                left: int = table_value >> 4
+                table[table_index] = (left << 4) + slice_depth
+                new_entry = True
     return new_entry
