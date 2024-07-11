@@ -51,7 +51,7 @@ class StateAll:
             if flip_mirror[0]:
                 self.square1.flip_layers()
             # copies cube another time
-            mod: Square1 = square1.get_copy()
+            mod: Square1 = self.square1.get_copy()
             for up_turn in up_turns:
                 for down_turn in down_turns:
                     if not flip_mirrors[0] and not flip_mirrors[1] and up_turn == 0 and down_turn == 0:
