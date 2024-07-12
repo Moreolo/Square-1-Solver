@@ -12,7 +12,7 @@ class SolverStandard:
         human_readables: list[tuple[int, int]] = []
         # calculates the slices required to solve csp
         slices: int = self._get_slices_cs(square1.get_copy())
-        print("CSP solvable in", slices)
+        print("CSP solvable in", slices, "slices")
         while slices > 0:
             # gets the next turn with less required slices
             turn: tuple[int, int] = self._get_next_turn_cs(square1, slices)
@@ -27,7 +27,7 @@ class SolverStandard:
             slices -= 1
         # calculates the slices required to solve sqsq
         slices: int = self._get_slices_sqsq(square1.get_copy())
-        print("Square Square solvable in", slices)
+        print("Square Square solvable in", slices, "slices")
         while slices > 0:
             # gets the next turn with less required slices
             turn: tuple[int, int] = self._get_next_turn_sqsq(square1, slices)

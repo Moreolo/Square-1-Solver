@@ -9,7 +9,7 @@ class SolverOptimal:
     def solve(self, square1: Square1, bar_solved: bool) -> list[tuple[int, int]]:
         human_readables: list[tuple[int, int]] = []
         slices: int = self._get_slices(square1.get_copy())
-        print("Square Square solvable in", slices)
+        print("Solvable in", slices, "slices")
         while slices > 0:
             # gets the next turn with less required slices
             turn: tuple[int, int] = self._get_next_turn(square1, slices)

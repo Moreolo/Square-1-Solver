@@ -79,7 +79,7 @@ class SliceCountTable:
             self.step_rel: float = .001
         elif self.state_type == SliceCountTable.ALL:
             self.step_rel: float = .0001
-        self.step_abs: int = int(self.step_rel * self.size)
+        self.step_abs: float = self.step_rel * self.size
         self.step: int = 1
         if self.max_slices == 0:
             return
@@ -145,7 +145,7 @@ class SliceCountTable:
         while opened:
             print("Check", len(opened), "states for slice depth", slice_depth)
             job = partial(_fill_table_sqsq, slice_depth)
-            while opened:
+            while opened and self.filled < self.size:
                 opened.prepare_read()
                 with get_context("fork").Pool(n_processes, initializer=_init, initargs=(self.shared_table, self.lock)) as pool:
                     for sq1 in pool.imap_unordered(job, opened.read(), chunksize=4000):
@@ -153,15 +153,14 @@ class SliceCountTable:
                             self._increase_fill(sq1[1])
                             if slice_depth < self.max_slices - 1:
                                 closed.write(sq1[0])
-                if self.filled == self.size:
-                    break
+            print(self.filled, "entries filled")
 
             opened.clear()
             if closed and (self.filled < self.size):
                 slice_depth += 1
                 print("Generate states from", len(closed), "states for slice depth", slice_depth)
                 step_rel: float = .1
-                step_abs: int = int(step_rel * len(closed))
+                step_abs: float = step_rel * len(closed)
                 step: int = 1
                 counter: int = 0
                 with get_context("fork").Pool(n_processes) as pool:
@@ -209,23 +208,22 @@ class SliceCountTable:
         while opened:
             print("Check", len(opened), "states for slice depth", slice_depth)
             job = partial(_fill_table_all, slice_depth)
-            while opened:
+            while opened and self.filled < self.size:
                 opened.prepare_read()
                 with get_context("fork").Pool(n_processes, initializer=_init, initargs=(self.shared_table, self.lock)) as pool:
                     for sq1 in pool.imap_unordered(job, opened.read(), chunksize=4000):
                         if sq1 is not None:
                             self._increase_fill(sq1[1], slice_depth)
-                            if slice_depth < self.max_slices:# - 1:
+                            if slice_depth < self.max_slices - 1:
                                 closed.write(sq1[0])
-                if self.filled == self.size:
-                    break
+            print(self.filled, "entries filled")
 
             opened.clear()
             if closed and (self.filled < self.size):
                 slice_depth += 1
                 print("Generate states from", len(closed), "states for slice depth", slice_depth)
                 step_rel: float = .01
-                step_abs: int = int(step_rel * len(closed))
+                step_abs: float = step_rel * len(closed)
                 step: int = 1
                 counter: int = 0
                 with get_context("spawn").Pool(n_processes) as pool:
@@ -239,21 +237,21 @@ class SliceCountTable:
                                 while counter >= step * step_abs:
                                     print(f"{step * step_rel:.0%}", "of states generated")
                                     step += 1
-        # print("Set rest of Table to Slice Depth", self.max_slices)
-        # for index in range((self.size + 1) // 2):
-        #     left: int = self.table[index] >> 4
-        #     right: int = self.table[index] % 16
-        #     changed: bool = False
-        #     if left == 15:
-        #         left = self.max_slices
-        #         changed = True
-        #         self._increase_fill()
-        #     if right == 15:
-        #         right = self.max_slices
-        #         changed = True
-        #         self._increase_fill()
-        #     if changed:
-        #         self.table[index] = (left << 4) + right
+        print("Set rest of Table to Slice Depth", self.max_slices)
+        for index in range((self.size + 1) // 2):
+            left: int = self.table[index] >> 4
+            right: int = self.table[index] % 16
+            changed: bool = False
+            if left == 15:
+                left = self.max_slices
+                changed = True
+                self._increase_fill()
+            if right == 15:
+                right = self.max_slices
+                changed = True
+                self._increase_fill()
+            if changed:
+                self.table[index] = (left << 4) + right
         print("Maximum slice depth", slice_depth)
 
     def _get_filename(self) -> str:
@@ -283,6 +281,15 @@ class SliceCountTable:
                 self._increase_fill()
                 return True
         return False
+
+    def _force_write(self, index: int, value: int) -> None:
+        table_value: int = self.table[index >> 1]
+        left: int = table_value >> 4
+        right: int = table_value % 16
+        if not index & 1:
+            self.table[index >> 1] = (value << 4) + right
+        else:
+            self.table[index >> 1] = (left << 4) + value
 
     def _increase_fill(self, increase: int = 1, slice_depth: (int | None) = None) -> None:
         slices: str = ""
