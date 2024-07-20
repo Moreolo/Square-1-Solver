@@ -1,2 +1,2 @@
 # Square-1 Solver
- an efficient solver for the Square-1 puzzle
+This is an efficient solver for the Square-1 puzzle. It works by converting a position into an index. This index is then used to get the required slices to solve the position from a pre-generated table. An algorithm then iterates over derivative position to find the path to 0 required slices. There are different approaches requiring different tables. Currently there's only an option to generate the tables on a Linux machine because the multiprocessing uses fork.
